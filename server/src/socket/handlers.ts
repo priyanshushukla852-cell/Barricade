@@ -1,0 +1,289 @@
+import type { Server, Socket } from 'socket.io';
+import { z } from 'zod';
+import type { ServerToClientEvents, ClientToServerEvents } from '@shared/types';
+import {
+  getRoom,
+  getRoomBySocketId,
+  joinRoom,
+  updateState,
+  deleteRoom,
+} from '../rooms/roomManager';
+import type { Room } from '../rooms/roomManager';
+import { createInitialState, applyMove, applyWall, checkWinner } from '../game';
+import { saveGame } from '../db/saveGame';
+
+const PositionSchema = z.object({ row: z.number().int(), col: z.number().int() });
+const EdgeSchema = z.object({ from: PositionSchema, to: PositionSchema });
+
+const JoinSchema = z.object({
+  roomCode: z.string(),
+  userId: z.string(),
+  nickname: z.string(),
+});
+const StartSchema = z.object({
+  roomCode: z.string(),
+  timerConfig: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(5)]),
+});
+const MoveSchema = z.object({
+  roomCode: z.string(),
+  direction: z.enum(['up', 'down', 'left', 'right']),
+});
+const WallSchema = z.object({ roomCode: z.string(), wall: EdgeSchema });
+const LeaveSchema = z.object({ roomCode: z.string() });
+
+type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
+type AppServer = Server<ClientToServerEvents, ServerToClientEvents>;
+
+const RECONNECT_SECONDS = 60;
+
+function persistGame(roomCode: string, room: Room, winner: import('@shared/types').PieceColor): void {
+  if (!room.red || !room.blue || !room.startedAt) return;
+  saveGame(roomCode, winner, room.red.userId, room.blue.userId, room.startedAt).catch(
+    console.error,
+  );
+}
+
+export function clearTurnTimer(room: Room): void {
+  if (room.turnTimer) clearTimeout(room.turnTimer);
+  if (room.tickInterval) clearInterval(room.tickInterval);
+  room.turnTimer = null;
+  room.tickInterval = null;
+}
+
+export function startTurnTimer(io: AppServer, roomCode: string): void {
+  const room = getRoom(roomCode);
+  if (!room || !room.state) return;
+
+  clearTurnTimer(room);
+
+  const durationMs = room.state.timerSeconds * 1000;
+
+  room.tickInterval = setInterval(() => {
+    const r = getRoom(roomCode);
+    if (!r || !r.state) return;
+    r.state.timerSeconds = Math.max(0, r.state.timerSeconds - 1);
+    io.to(roomCode).emit('timer_tick', { seconds: r.state.timerSeconds });
+  }, 1000);
+
+  room.turnTimer = setTimeout(() => {
+    const r = getRoom(roomCode);
+    if (!r || !r.state) return;
+    clearTurnTimer(r);
+    const winner = r.state.currentTurn === 'red' ? 'blue' : 'red';
+    r.state.winner = winner;
+    r.state.phase = 'game_over';
+    io.to(roomCode).emit('game_over', { winner, reason: 'timeout' });
+    persistGame(roomCode, room, winner);
+    deleteRoom(roomCode);
+  }, durationMs);
+}
+
+export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
+  socket.on('join_lobby', (payload) => {
+    const result = JoinSchema.safeParse(payload);
+    if (!result.success) {
+      socket.emit('error', { message: 'Invalid join_lobby payload' });
+      return;
+    }
+    const { roomCode, userId, nickname } = result.data;
+
+    // Reconnect: player with same userId already exists in the room
+    const room = getRoom(roomCode);
+    if (room) {
+      const existing = room.red?.userId === userId
+        ? room.red
+        : room.blue?.userId === userId
+          ? room.blue
+          : null;
+      if (existing) {
+        const timer = room.disconnectTimers.get(userId);
+        if (timer) {
+          clearTimeout(timer);
+          room.disconnectTimers.delete(userId);
+        }
+        existing.socketId = socket.id;
+        socket.join(roomCode);
+        if (room.state) socket.emit('game_state', room.state);
+        return;
+      }
+    }
+
+    // Normal join
+    socket.join(roomCode);
+    try {
+      joinRoom(roomCode, socket.id, userId, nickname);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Join failed';
+      socket.emit('error', { message });
+      return;
+    }
+    const updated = getRoom(roomCode);
+    if (updated && updated.red !== null && updated.blue !== null) {
+      io.to(roomCode).emit('lobby_ready');
+    }
+  });
+
+  socket.on('start_game', (payload) => {
+    const result = StartSchema.safeParse(payload);
+    if (!result.success) {
+      socket.emit('error', { message: 'Invalid start_game payload' });
+      return;
+    }
+    const { roomCode, timerConfig } = result.data;
+    const room = getRoom(roomCode);
+    if (!room) {
+      socket.emit('error', { message: 'Room not found' });
+      return;
+    }
+    if (!room.red || !room.blue) {
+      socket.emit('error', { message: 'Not enough players' });
+      return;
+    }
+    const state = createInitialState(timerConfig);
+    updateState(roomCode, state);
+    room.startedAt = new Date();
+    startTurnTimer(io, roomCode);
+    io.to(roomCode).emit('game_state', state);
+  });
+
+  socket.on('move_piece', (payload) => {
+    const result = MoveSchema.safeParse(payload);
+    if (!result.success) {
+      socket.emit('error', { message: 'Invalid move_piece payload' });
+      return;
+    }
+    const { roomCode, direction } = result.data;
+    const room = getRoom(roomCode);
+    if (!room || !room.state) {
+      socket.emit('error', { message: 'Room not found' });
+      return;
+    }
+    const color =
+      room.red?.socketId === socket.id
+        ? 'red'
+        : room.blue?.socketId === socket.id
+          ? 'blue'
+          : null;
+    if (!color || color !== room.state.currentTurn) {
+      socket.emit('error', { message: 'Not your turn' });
+      return;
+    }
+    let newState;
+    try {
+      newState = applyMove(room.state, direction);
+    } catch (err) {
+      socket.emit('error', { message: err instanceof Error ? err.message : 'Move failed' });
+      return;
+    }
+    const winner = checkWinner(newState);
+    if (winner) {
+      newState = { ...newState, winner, phase: 'game_over' as const };
+      clearTurnTimer(room);
+      updateState(roomCode, newState);
+      io.to(roomCode).emit('game_over', { winner, reason: 'reached_goal' });
+      persistGame(roomCode, room, winner);
+      deleteRoom(roomCode);
+    } else {
+      updateState(roomCode, newState);
+      clearTurnTimer(room);
+      startTurnTimer(io, roomCode);
+      io.to(roomCode).emit('game_state', newState);
+    }
+  });
+
+  socket.on('place_wall', (payload) => {
+    const result = WallSchema.safeParse(payload);
+    if (!result.success) {
+      socket.emit('error', { message: 'Invalid place_wall payload' });
+      return;
+    }
+    const { roomCode, wall } = result.data;
+    const room = getRoom(roomCode);
+    if (!room || !room.state) {
+      socket.emit('error', { message: 'Room not found' });
+      return;
+    }
+    const color =
+      room.red?.socketId === socket.id
+        ? 'red'
+        : room.blue?.socketId === socket.id
+          ? 'blue'
+          : null;
+    if (!color || color !== room.state.currentTurn) {
+      socket.emit('error', { message: 'Not your turn' });
+      return;
+    }
+    let newState;
+    try {
+      newState = applyWall(room.state, wall);
+    } catch (err) {
+      socket.emit('error', {
+        message: err instanceof Error ? err.message : 'Wall placement failed',
+      });
+      return;
+    }
+    const winner = checkWinner(newState);
+    if (winner) {
+      newState = { ...newState, winner, phase: 'game_over' as const };
+      clearTurnTimer(room);
+      updateState(roomCode, newState);
+      io.to(roomCode).emit('game_over', { winner, reason: 'reached_goal' });
+      persistGame(roomCode, room, winner);
+      deleteRoom(roomCode);
+    } else {
+      updateState(roomCode, newState);
+      clearTurnTimer(room);
+      startTurnTimer(io, roomCode);
+      io.to(roomCode).emit('game_state', newState);
+    }
+  });
+
+  socket.on('leave_game', (payload) => {
+    const result = LeaveSchema.safeParse(payload);
+    if (!result.success) {
+      socket.emit('error', { message: 'Invalid leave_game payload' });
+      return;
+    }
+    const { roomCode } = result.data;
+    const room = getRoom(roomCode);
+    if (!room) return;
+
+    const leavingColor = room.red?.socketId === socket.id ? 'red'
+      : room.blue?.socketId === socket.id ? 'blue'
+      : null;
+    const winner = leavingColor === 'red' ? 'blue' : 'red';
+
+    clearTurnTimer(room);
+    io.to(roomCode).emit('game_over', { winner, reason: 'opponent_left' });
+    persistGame(roomCode, room, winner);
+    deleteRoom(roomCode);
+  });
+
+  socket.on('disconnect', () => {
+    const found = getRoomBySocketId(socket.id);
+    if (!found) return;
+    const { roomCode, room } = found;
+
+    const disconnecting = room.red?.socketId === socket.id ? room.red : room.blue;
+    if (!disconnecting) return;
+
+    // Notify the other player they can wait for reconnect
+    socket.to(roomCode).emit('opponent_left', {
+      reconnecting: true,
+      secondsLeft: RECONNECT_SECONDS,
+    });
+    clearTurnTimer(room);
+
+    const timer = setTimeout(() => {
+      const r = getRoom(roomCode);
+      if (!r) return;
+      // The winner is whichever player is NOT the one who disconnected
+      const winner = disconnecting.color === 'red' ? 'blue' : 'red';
+      io.to(roomCode).emit('game_over', { winner, reason: 'opponent_left' });
+      persistGame(roomCode, room, winner);
+      deleteRoom(roomCode);
+    }, RECONNECT_SECONDS * 1000);
+
+    room.disconnectTimers.set(disconnecting.userId, timer);
+  });
+}

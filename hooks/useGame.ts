@@ -1,0 +1,125 @@
+import { useGameStore } from '../store/gameStore';
+import { useSocket, emit } from './useSocket';
+import {
+  applyMove,
+  applyWall,
+  checkWinner,
+  getAdjacentSquare,
+  getValidMoves,
+  isWallPlacementValid,
+  normalizeEdge,
+} from '@shared/game';
+import type { Direction, Edge, Position } from '@shared/types';
+
+export function useGame({
+  online = false,
+  onSocketError,
+}: {
+  online?: boolean;
+  onSocketError?: () => void;
+} = {}) {
+  useSocket({ enabled: online, onSocketError });
+
+  const gameState = useGameStore((s) => s.gameState);
+  const playerColor = useGameStore((s) => s.playerColor);
+  const roomCode = useGameStore((s) => s.roomCode);
+  const setGameState = useGameStore((s) => s.setGameState);
+  const setHighlightedSquares = useGameStore((s) => s.setHighlightedSquares);
+  const setDraggingWall = useGameStore((s) => s.setDraggingWall);
+  const setWallPreview = useGameStore((s) => s.setWallPreview);
+  const clearSelection = useGameStore((s) => s.clearSelection);
+
+  // Hot-seat: always act as whichever color's turn it is.
+  // Online: act only as the assigned playerColor.
+  const activeColor = online ? playerColor : (gameState?.currentTurn ?? null);
+
+  function isMyTurn(): boolean {
+    if (!gameState || gameState.phase !== 'choosing') return false;
+    if (!online) return true;
+    if (!playerColor) return false;
+    return playerColor === gameState.currentTurn;
+  }
+
+  function onSelectPiece(): void {
+    if (!isMyTurn() || !gameState || !activeColor) return;
+
+    const myPos = activeColor === 'red' ? gameState.redPosition : gameState.bluePosition;
+    const oppPos = activeColor === 'red' ? gameState.bluePosition : gameState.redPosition;
+    const validDirs = getValidMoves(gameState);
+
+    const destinations: Position[] = [];
+    for (const dir of validDirs) {
+      const adj = getAdjacentSquare(myPos, dir);
+      if (!adj) continue;
+      if (adj.row === oppPos.row && adj.col === oppPos.col) {
+        const behind = getAdjacentSquare(oppPos, dir);
+        if (behind) destinations.push(behind);
+      } else {
+        destinations.push(adj);
+      }
+    }
+
+    setHighlightedSquares(destinations);
+  }
+
+  function onConfirmMove(dir: Direction): void {
+    if (!online) {
+      if (!gameState) return;
+      try {
+        const next = applyMove(gameState, dir);
+        const winner = checkWinner(next);
+        setGameState(winner ? { ...next, winner, phase: 'game_over' } : next);
+      } catch {
+        // invalid move — ignore
+      }
+      clearSelection();
+      return;
+    }
+    if (!roomCode) return;
+    emit('move_piece', { roomCode, direction: dir });
+    clearSelection();
+  }
+
+  function onStartWallDrag(): void {
+    if (!isMyTurn() || !gameState || !activeColor) return;
+    const wallsRemaining =
+      activeColor === 'red' ? gameState.redWallsRemaining : gameState.blueWallsRemaining;
+    if (wallsRemaining === 0) return;
+    setDraggingWall(true);
+  }
+
+  function onWallDragMove(edge: Edge): void {
+    if (!gameState) return;
+    const isValid = isWallPlacementValid(gameState, edge);
+    setWallPreview(edge, isValid);
+  }
+
+  function onConfirmWall(edge: Edge): void {
+    if (!online) {
+      if (!gameState) return;
+      try {
+        const next = applyWall(gameState, edge);
+        setGameState(next);
+      } catch {
+        // invalid wall — ignore
+      }
+      clearSelection();
+      return;
+    }
+    if (!roomCode) return;
+    emit('place_wall', { roomCode, wall: normalizeEdge(edge) });
+    clearSelection();
+  }
+
+  return {
+    isMyTurn,
+    onSelectPiece,
+    onConfirmMove,
+    onStartWallDrag,
+    onWallDragMove,
+    onConfirmWall,
+    getValidMoves: (): Direction[] => (gameState ? getValidMoves(gameState) : []),
+    isWallPlacementValid: (wall: Edge): boolean =>
+      gameState ? isWallPlacementValid(gameState, wall) : false,
+  };
+}

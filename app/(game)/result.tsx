@@ -1,0 +1,86 @@
+import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import type { PieceColor } from '@shared/types';
+
+const PIECE_COLORS: Record<PieceColor, string> = {
+  red: '#E24B4A',
+  blue: '#378ADD',
+};
+
+const REASON_TEXT: Record<string, string> = {
+  reached_goal: "Reached the opponent's home!",
+  timeout: 'Opponent ran out of time!',
+  opponent_left: 'Opponent left the game.',
+};
+
+export default function ResultScreen() {
+  const { winner, reason } = useLocalSearchParams<{ winner?: string; reason?: string }>();
+
+  const isValidColor = winner === 'red' || winner === 'blue';
+  const color = isValidColor ? PIECE_COLORS[winner as PieceColor] : '#1A1A1A';
+  const label = winner ? winner.toUpperCase() : '?';
+  const subtitle = reason ? (REASON_TEXT[reason] ?? '') : '';
+
+  return (
+    <SafeAreaView style={styles.screen}>
+      <View style={styles.content}>
+        <Text style={[styles.winner, { color }]}>{label} WINS!</Text>
+        {subtitle !== '' && <Text style={styles.subtitle}>{subtitle}</Text>}
+
+        <View style={styles.actions}>
+          <Pressable
+            style={[styles.btn, styles.btnPrimary]}
+            onPress={() => router.replace('/(game)/home')}
+          >
+            <Text style={styles.btnPrimaryText}>Play Again</Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.btn, styles.btnSecondary]}
+            onPress={() => router.replace('/(game)/home')}
+          >
+            <Text style={styles.btnSecondaryText}>Home</Text>
+          </Pressable>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#FAF7F2' },
+  content: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    gap: 16,
+  },
+  winner: {
+    fontSize: 40,
+    fontWeight: '900',
+    letterSpacing: 2,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 17,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  actions: {
+    width: '100%',
+    gap: 12,
+    marginTop: 8,
+  },
+  btn: {
+    height: 50,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnPrimary: { backgroundColor: '#4A3728' },
+  btnPrimaryText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  btnSecondary: { borderWidth: 1.5, borderColor: '#4A3728' },
+  btnSecondaryText: { color: '#4A3728', fontSize: 16, fontWeight: '600' },
+});

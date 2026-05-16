@@ -1,0 +1,12 @@
+export { normalizeEdge } from './normalizeEdge';
+export { getAdjacentSquare } from './getAdjacentSquare';
+export { isWallBlocking } from './isWallBlocking';
+export { getValidMoves } from './getValidMoves';
+export { wallsIntersect } from './wallsIntersect';
+export { pathExists } from './pathExists';
+export { isWallPlacementValid } from './isWallPlacementValid';
+export { BOARD_SIZE, RED_START, RED_GOAL, BLUE_START, BLUE_GOAL } from './boardConfig';
+export { createInitialState } from './createInitialState';
+export { applyMove } from './applyMove';
+export { applyWall } from './applyWall';
+export { checkWinner } from './checkWinner';

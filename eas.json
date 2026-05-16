@@ -1,0 +1,10 @@
+{
+  "cli": { "version": ">= 5.0.0" },
+  "build": {
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_SERVER_URL": "https://barricade-server-production.up.railway.app"
+      }
+    }
+  }
+}
