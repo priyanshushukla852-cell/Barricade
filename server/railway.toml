@@ -1,5 +1,2 @@
-[build]
-builder = "NIXPACKS"
-
-[deploy]
-startCommand = "npm run build && npm start"
+# This file is superseded by /railway.toml at the repo root.
+# Railway uses the root Dockerfile so that shared/ is in the build context.
