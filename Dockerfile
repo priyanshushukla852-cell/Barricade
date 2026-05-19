@@ -29,4 +29,4 @@ COPY server/tsconfig.json .
 COPY --from=builder /app/shared /app/shared
 
 EXPOSE 3001
-CMD ["node", "-r", "tsconfig-paths/register", "dist/index.js"]
+CMD ["node", "-r", "tsconfig-paths/register", "dist/server/src/index.js"]
