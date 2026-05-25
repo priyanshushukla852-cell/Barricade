@@ -31,12 +31,14 @@ function snapToEdge(
   const nearestRow = Math.round(fractRow);
 
   if (orientation === 'vertical') {
-    const row = Math.min(8, Math.max(0, Math.floor(fractRow)));
+    // Row capped at 7: companion edge needs row+1 ≤ 8.
+    const row = Math.min(7, Math.max(0, Math.floor(fractRow)));
     if (nearestCol >= 1 && nearestCol <= 8) {
       return normalizeEdge({ from: { row, col: nearestCol - 1 }, to: { row, col: nearestCol } });
     }
   } else {
-    const col = Math.min(8, Math.max(0, Math.floor(fractCol)));
+    // Col capped at 7: companion edge needs col+1 ≤ 8.
+    const col = Math.min(7, Math.max(0, Math.floor(fractCol)));
     if (nearestRow >= 1 && nearestRow <= 8) {
       return normalizeEdge({ from: { row: nearestRow - 1, col }, to: { row: nearestRow, col } });
     }
