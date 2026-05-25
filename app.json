@@ -32,6 +32,13 @@
     "plugins": [
       "expo-router",
       "expo-web-browser"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4fcaab9f-2b4e-46db-b7e8-74192a984357"
+      }
+    },
+    "owner": "priyanshu173"
   }
 }

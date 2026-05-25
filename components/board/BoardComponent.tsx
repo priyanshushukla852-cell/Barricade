@@ -25,14 +25,15 @@ export function BoardComponent({ onSquarePress, flashError = false }: Props) {
   const playerColor = useGameStore((s) => s.playerColor);
   const highlightedSquares = useGameStore((s) => s.highlightedSquares);
 
-  const isMyTurn = !!gameState && playerColor === gameState.currentTurn;
+  // Local game: playerColor is null — always interactive for the active player.
+  // Online game: only interactive when it's your assigned color's turn.
+  const isMyTurn = !!gameState && (playerColor === null || playerColor === gameState.currentTurn);
 
   function handlePress(position: Position) {
-    if (!gameState || !playerColor) {
-      onSquarePress(position);
-      return;
-    }
-    const myPos = playerColor === 'red' ? gameState.redPosition : gameState.bluePosition;
+    if (!gameState) return;
+    // Local game: playerColor is null — act as whichever color's turn it is.
+    const activeColor = playerColor ?? gameState.currentTurn;
+    const myPos = activeColor === 'red' ? gameState.redPosition : gameState.bluePosition;
     const highlighted = highlightedSquares.some(
       (s) => s.row === position.row && s.col === position.col,
     );

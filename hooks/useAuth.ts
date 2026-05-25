@@ -9,8 +9,7 @@ import {
   signOut as firebaseSignOut,
   type User,
 } from 'firebase/auth';
-import { AuthRequest, makeRedirectUri } from 'expo-auth-session';
-import * as Crypto from 'expo-crypto';
+import { AuthRequest, exchangeCodeAsync } from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import { auth } from '../lib/firebase';
 import { useAuthStore } from '../store/authStore';
@@ -20,7 +19,12 @@ WebBrowser.maybeCompleteAuthSession();
 
 const GOOGLE_DISCOVERY = {
   authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+  tokenEndpoint: 'https://oauth2.googleapis.com/token',
 };
+
+// Web OAuth clients require an HTTPS redirect URI; the Expo auth proxy
+// satisfies this without needing a native Android/iOS client ID.
+const REDIRECT_URI = 'https://auth.expo.io/@priyanshu173/barricade';
 
 async function applyUser(user: User): Promise<void> {
   const token = await getIdToken(user);
@@ -55,22 +59,14 @@ export async function signUpWithEmail(email: string, password: string): Promise<
 }
 
 export async function signInWithGoogle(): Promise<void> {
-  // Build a SHA-256 nonce to bind the id_token to this request.
-  const rawNonce = `${Date.now()}-${Math.random()}`;
-  const nonce = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    rawNonce,
-  );
-
-  const redirectUri = makeRedirectUri();
+  const clientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? '';
 
   const request = new AuthRequest({
-    clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? '',
+    clientId,
     scopes: ['openid', 'profile', 'email'],
-    redirectUri,
-    responseType: 'id_token',
-    usePKCE: false,
-    extraParams: { nonce },
+    redirectUri: REDIRECT_URI,
+    responseType: 'code',
+    usePKCE: true,
   });
 
   const result = await request.promptAsync(GOOGLE_DISCOVERY);
@@ -78,7 +74,17 @@ export async function signInWithGoogle(): Promise<void> {
   if (result.type === 'cancel' || result.type === 'dismiss') return;
   if (result.type !== 'success') throw new Error('Google sign-in failed');
 
-  const idToken = result.params.id_token;
+  const tokenResult = await exchangeCodeAsync(
+    {
+      clientId,
+      code: result.params.code,
+      redirectUri: REDIRECT_URI,
+      extraParams: { code_verifier: request.codeVerifier! },
+    },
+    GOOGLE_DISCOVERY,
+  );
+
+  const idToken = tokenResult.idToken;
   if (!idToken) throw new Error('No id_token received from Google');
 
   const credential = GoogleAuthProvider.credential(idToken);
