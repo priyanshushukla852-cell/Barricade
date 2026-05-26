@@ -76,18 +76,49 @@ function WallPreview({ wall, color }: { wall: Edge; color: string }) {
   return <View style={[wallPositionStyle(wall), { backgroundColor: color }]} />;
 }
 
+function isPrimaryEdge(wall: Edge, allWalls: Edge[]): boolean {
+  if (wall.from.row === wall.to.row) {
+    // Vertical bar: it's a companion if the same column span one row above exists
+    if (wall.from.row === 0) return true;
+    return !allWalls.some(
+      (w) =>
+        w.from.row === wall.from.row - 1 &&
+        w.from.col === wall.from.col &&
+        w.to.row === wall.to.row - 1 &&
+        w.to.col === wall.to.col,
+    );
+  }
+  // Horizontal bar: it's a companion if the same row span one col to the left exists
+  if (wall.from.col === 0) return true;
+  return !allWalls.some(
+    (w) =>
+      w.from.row === wall.from.row &&
+      w.from.col === wall.from.col - 1 &&
+      w.to.row === wall.to.row &&
+      w.to.col === wall.to.col - 1,
+  );
+}
+
 export function WallOverlay() {
   const placedWalls = useGameStore((s) => s.gameState?.placedWalls ?? []);
   const wallPreview = useGameStore((s) => s.wallPreview);
   const wallPreviewValid = useGameStore((s) => s.wallPreviewValid);
   const reducedMotion = useReducedMotion();
 
+  // Each placed wall stores two edges (primary + companion). Only render
+  // primary edges — each draws exactly 2 cells, matching the logical block.
+  const primaryWalls = placedWalls.filter((w) => isPrimaryEdge(w, placedWalls));
+
   return (
     <View
-      style={{ position: 'absolute', top: 0, left: 0, width: BOARD_PIXEL_SIZE, height: BOARD_PIXEL_SIZE }}
+      style={{
+        position: 'absolute', top: 0, left: 0,
+        width: BOARD_PIXEL_SIZE, height: BOARD_PIXEL_SIZE,
+        overflow: 'hidden',
+      }}
       pointerEvents="none"
     >
-      {placedWalls.map((wall) => {
+      {primaryWalls.map((wall) => {
         const key = JSON.stringify(normalizeEdge(wall));
         return (
           <AnimatedWallSegment

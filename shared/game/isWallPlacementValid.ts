@@ -1,9 +1,15 @@
-import type { Edge, GameState } from '@shared/types';
+import type { Edge, GameState, Position } from '@shared/types';
 import { normalizeEdge } from './normalizeEdge';
 import { wallsIntersect } from './wallsIntersect';
 import { pathExists } from './pathExists';
 import { getCompanionEdge } from './getCompanionEdge';
-import { BLUE_GOAL, RED_GOAL } from './boardConfig';
+import { BOARD_SIZE } from './boardConfig';
+
+function hasPathToRow(walls: Edge[], from: Position, targetRow: number): boolean {
+  return Array.from({ length: BOARD_SIZE }, (_, col) => col).some((col) =>
+    pathExists(walls, from, { row: targetRow, col }),
+  );
+}
 
 function isDuplicate(walls: Edge[], edge: Edge): boolean {
   return walls.some(
@@ -13,6 +19,35 @@ function isDuplicate(walls: Edge[], edge: Edge): boolean {
       w.to.row === edge.to.row &&
       w.to.col === edge.to.col,
   );
+}
+
+// wallsIntersect is only valid when both arguments are primary edges.
+// placedWalls stores both primaries and companions, so filter first.
+function filterToPrimary(walls: Edge[]): Edge[] {
+  return walls.filter((wall) => {
+    if (wall.from.row === wall.to.row) {
+      return (
+        wall.from.row === 0 ||
+        !walls.some(
+          (w) =>
+            w.from.row === wall.from.row - 1 &&
+            w.from.col === wall.from.col &&
+            w.to.row === wall.to.row - 1 &&
+            w.to.col === wall.to.col,
+        )
+      );
+    }
+    return (
+      wall.from.col === 0 ||
+      !walls.some(
+        (w) =>
+          w.from.row === wall.from.row &&
+          w.from.col === wall.from.col - 1 &&
+          w.to.row === wall.to.row &&
+          w.to.col === wall.to.col - 1,
+      )
+    );
+  });
 }
 
 export function isWallPlacementValid(state: GameState, wall: Edge): boolean {
@@ -34,14 +69,16 @@ export function isWallPlacementValid(state: GameState, wall: Edge): boolean {
   if (isDuplicate(state.placedWalls, normalized)) return false;
   if (isDuplicate(state.placedWalls, companion)) return false;
 
-  // Neither edge may cross an existing wall.
-  if (state.placedWalls.some((w) => wallsIntersect(normalized, w) || wallsIntersect(companion, w)))
-    return false;
+  // Two 2-unit walls cross iff their primary edges satisfy wallsIntersect.
+  // Comparing against companion edges produces false positives (they only touch
+  // endpoints, not interior points), so compare primary-vs-primary only.
+  const existingPrimaries = filterToPrimary(state.placedWalls);
+  if (existingPrimaries.some((w) => wallsIntersect(normalized, w))) return false;
 
-  // Both players must still have a path to their goal after placing both edges.
+  // Both players must still have a path to their goal row after placing both edges.
   const hypothetical = [...state.placedWalls, normalized, companion];
-  if (!pathExists(hypothetical, state.redPosition, RED_GOAL)) return false;
-  if (!pathExists(hypothetical, state.bluePosition, BLUE_GOAL)) return false;
+  if (!hasPathToRow(hypothetical, state.redPosition, 8)) return false;
+  if (!hasPathToRow(hypothetical, state.bluePosition, 0)) return false;
 
   return true;
 }

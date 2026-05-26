@@ -120,8 +120,10 @@ export function WallHand({ onWallDragStart, onWallDrop }: Props) {
   dropRef.current = onWallDrop;
   gameRef.current = game;
 
+  // Local game: playerColor is null — use currentTurn's wall count.
+  const activeColor = playerColor ?? gameState?.currentTurn ?? 'red';
   const wallsRemaining = gameState
-    ? playerColor === 'red'
+    ? activeColor === 'red'
       ? gameState.redWallsRemaining
       : gameState.blueWallsRemaining
     : 0;
@@ -133,36 +135,30 @@ export function WallHand({ onWallDragStart, onWallDrop }: Props) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.tokens}>
-        <WallToken
-          orientation="vertical"
-          canDragRef={canDragRef}
-          onDragStart={() => startRef.current()}
-          onDrop={(e) => dropRef.current(e)}
-          onDragMove={(e) => gameRef.current.onWallDragMove(e)}
-          dragging={draggingWall}
-          disabled={disabled}
-        />
-        <WallToken
-          orientation="horizontal"
-          canDragRef={canDragRef}
-          onDragStart={() => startRef.current()}
-          onDrop={(e) => dropRef.current(e)}
-          onDragMove={(e) => gameRef.current.onWallDragMove(e)}
-          dragging={draggingWall}
-          disabled={disabled}
-        />
-      </View>
-      <Text style={[styles.count, disabled && styles.countDisabled]}>
-        {wallsRemaining} wall{wallsRemaining !== 1 ? 's' : ''}
-      </Text>
+      <WallToken
+        orientation="vertical"
+        canDragRef={canDragRef}
+        onDragStart={() => startRef.current()}
+        onDrop={(e) => dropRef.current(e)}
+        onDragMove={(e) => gameRef.current.onWallDragMove(e)}
+        dragging={draggingWall}
+        disabled={disabled}
+      />
+      <WallToken
+        orientation="horizontal"
+        canDragRef={canDragRef}
+        onDragStart={() => startRef.current()}
+        onDrop={(e) => dropRef.current(e)}
+        onDragMove={(e) => gameRef.current.onWallDragMove(e)}
+        dragging={draggingWall}
+        disabled={disabled}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 },
-  tokens: { flexDirection: 'row', gap: 8 },
+  container: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   token: {
     width: 48,
     height: 48,
@@ -174,6 +170,4 @@ const styles = StyleSheet.create({
   tokenDisabled: { backgroundColor: '#CCBBAA', opacity: 0.5 },
   tokenDragging: { opacity: 0.4 },
   tokenIcon: { color: '#FFFFFF', fontSize: 22, fontWeight: '700' },
-  count: { fontSize: 15, fontWeight: '600', color: '#333333' },
-  countDisabled: { color: '#AAAAAA' },
 });

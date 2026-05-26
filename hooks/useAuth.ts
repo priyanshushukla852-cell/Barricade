@@ -9,7 +9,7 @@ import {
   signOut as firebaseSignOut,
   type User,
 } from 'firebase/auth';
-import { AuthRequest, exchangeCodeAsync } from 'expo-auth-session';
+import { AuthRequest, exchangeCodeAsync, makeRedirectUri } from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import { auth } from '../lib/firebase';
 import { useAuthStore } from '../store/authStore';
@@ -22,9 +22,14 @@ const GOOGLE_DISCOVERY = {
   tokenEndpoint: 'https://oauth2.googleapis.com/token',
 };
 
-// Web OAuth clients require an HTTPS redirect URI; the Expo auth proxy
-// satisfies this without needing a native Android/iOS client ID.
-const REDIRECT_URI = 'https://auth.expo.io/@priyanshu173/barricade';
+// Android OAuth clients use a reversed-domain redirect URI and don't need a
+// client_secret — PKCE alone is sufficient. The intent filter in app.json
+// registers this scheme so Android can route the callback back to the app.
+const ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? '';
+const ANDROID_CLIENT_PREFIX = ANDROID_CLIENT_ID.split('.apps.')[0];
+const REDIRECT_URI = makeRedirectUri({
+  native: `com.googleusercontent.apps.${ANDROID_CLIENT_PREFIX}:/oauth2redirect`,
+});
 
 async function applyUser(user: User): Promise<void> {
   const token = await getIdToken(user);
@@ -59,10 +64,8 @@ export async function signUpWithEmail(email: string, password: string): Promise<
 }
 
 export async function signInWithGoogle(): Promise<void> {
-  const clientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? '';
-
   const request = new AuthRequest({
-    clientId,
+    clientId: ANDROID_CLIENT_ID,
     scopes: ['openid', 'profile', 'email'],
     redirectUri: REDIRECT_URI,
     responseType: 'code',
@@ -76,7 +79,7 @@ export async function signInWithGoogle(): Promise<void> {
 
   const tokenResult = await exchangeCodeAsync(
     {
-      clientId,
+      clientId: ANDROID_CLIENT_ID,
       code: result.params.code,
       redirectUri: REDIRECT_URI,
       extraParams: { code_verifier: request.codeVerifier! },

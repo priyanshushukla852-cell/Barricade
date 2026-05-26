@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   SafeAreaView,
   StyleSheet,
+  Text,
   View,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -86,13 +87,23 @@ export default function GameScreen() {
           <ActivityIndicator size="large" color="#4A3728" />
         </View>
       ) : (
-        <View ref={boardRef} onLayout={measureBoard} style={styles.boardWrapper}>
-          <BoardComponent onSquarePress={handleSquarePress} flashError={boardFlashError} />
+        <View style={styles.boardContainer}>
+          <View ref={boardRef} onLayout={measureBoard}>
+            <BoardComponent onSquarePress={handleSquarePress} flashError={boardFlashError} />
+          </View>
         </View>
       )}
 
       <View style={styles.footer}>
+        <View style={styles.wallCounter}>
+          <View style={[styles.counterDot, { backgroundColor: '#E24B4A' }]} />
+          <Text style={styles.counterText}>{gameState?.redWallsRemaining ?? 10}</Text>
+        </View>
         <WallHand onWallDragStart={game.onStartWallDrag} onWallDrop={handleWallDrop} />
+        <View style={styles.wallCounter}>
+          <View style={[styles.counterDot, { backgroundColor: '#378ADD' }]} />
+          <Text style={styles.counterText}>{gameState?.blueWallsRemaining ?? 10}</Text>
+        </View>
       </View>
 
       <ReconnectingOverlay />
@@ -111,6 +122,33 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  boardWrapper: { alignSelf: 'center', marginHorizontal: 16 },
-  footer: { paddingVertical: 16 },
+  boardContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    gap: 16,
+  },
+  wallCounter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 48,
+  },
+  counterDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+  },
+  counterText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333333',
+  },
 });

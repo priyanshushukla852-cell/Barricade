@@ -33,15 +33,26 @@ export function TurnIndicator() {
 
   const isMyTurn = playerColor === gameState.currentTurn;
   const dotColor = gameState.currentTurn === 'red' ? '#E24B4A' : '#378ADD';
+  const isLocalGame = playerColor === null;
+
+  const label = isLocalGame
+    ? `${gameState.currentTurn === 'red' ? 'Red' : 'Blue'}'s turn`
+    : isMyTurn
+    ? 'Your turn'
+    : "Opponent's turn";
+
+  const labelColor = isLocalGame
+    ? dotColor
+    : isMyTurn
+    ? '#22AA66'
+    : '#888888';
 
   return (
     <View style={styles.container}>
       <Animated.View
         style={[styles.dot, { backgroundColor: dotColor }, dotAnimatedStyle]}
       />
-      <Text style={[styles.label, { color: isMyTurn ? '#22AA66' : '#888888' }]}>
-        {isMyTurn ? 'Your turn' : "Opponent's turn"}
-      </Text>
+      <Text style={[styles.label, { color: labelColor }]}>{label}</Text>
     </View>
   );
 }

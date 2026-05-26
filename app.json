@@ -23,7 +23,18 @@
         "backgroundColor": "#FAF7F2"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.priyanshu.barricade"
+      "package": "com.priyanshu.barricade",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "com.googleusercontent.apps.587302474132-dhj0k33kpgpel7hgi34tn98ttoefjs6r"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",

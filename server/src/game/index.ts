@@ -1,4 +1,5 @@
 export { normalizeEdge } from './normalizeEdge';
+export { getCompanionEdge } from './getCompanionEdge';
 export { getAdjacentSquare } from './getAdjacentSquare';
 export { isWallBlocking } from './isWallBlocking';
 export { getValidMoves } from './getValidMoves';

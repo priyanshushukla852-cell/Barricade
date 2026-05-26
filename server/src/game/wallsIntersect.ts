@@ -1,8 +1,8 @@
 import type { Edge } from '@shared/types';
 
-// Every wall in this game spans exactly one edge (1 unit).
-// One-unit segments can only share endpoints — they cannot cross interior points.
-// Therefore two 1-unit walls can never geometrically intersect.
-export function wallsIntersect(_a: Edge, _b: Edge): boolean {
-  return false;
+export function wallsIntersect(a: Edge, b: Edge): boolean {
+  const aIsVertBar = a.from.row === a.to.row;
+  const bIsVertBar = b.from.row === b.to.row;
+  if (aIsVertBar === bIsVertBar) return false;
+  return a.from.row === b.from.row && a.from.col === b.from.col;
 }
