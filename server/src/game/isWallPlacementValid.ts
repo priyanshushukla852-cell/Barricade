@@ -21,31 +21,9 @@ function isDuplicate(walls: Edge[], edge: Edge): boolean {
   );
 }
 
+// applyWall always appends [primary, companion], so even-indexed entries are primaries.
 function filterToPrimary(walls: Edge[]): Edge[] {
-  return walls.filter((wall) => {
-    if (wall.from.row === wall.to.row) {
-      return (
-        wall.from.row === 0 ||
-        !walls.some(
-          (w) =>
-            w.from.row === wall.from.row - 1 &&
-            w.from.col === wall.from.col &&
-            w.to.row === wall.to.row - 1 &&
-            w.to.col === wall.to.col,
-        )
-      );
-    }
-    return (
-      wall.from.col === 0 ||
-      !walls.some(
-        (w) =>
-          w.from.row === wall.from.row &&
-          w.from.col === wall.from.col - 1 &&
-          w.to.row === wall.to.row &&
-          w.to.col === wall.to.col - 1,
-      )
-    );
-  });
+  return walls.filter((_, i) => i % 2 === 0);
 }
 
 export function isWallPlacementValid(state: GameState, wall: Edge): boolean {

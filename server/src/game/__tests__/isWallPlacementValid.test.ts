@@ -1,4 +1,5 @@
 import { isWallPlacementValid } from '../isWallPlacementValid';
+import { applyWall } from '../applyWall';
 import * as wallsIntersectModule from '../wallsIntersect';
 import type { GameState, Edge } from '@shared/types';
 
@@ -91,5 +92,30 @@ describe('isWallPlacementValid', () => {
     const newWall: Edge = { from: { row: 2, col: 1 }, to: { row: 3, col: 1 } };
     expect(isWallPlacementValid(makeState({ placedWalls: [existing] }), newWall)).toBe(false);
     spy.mockRestore();
+  });
+
+  it('rejects crossing wall at same peg even after two adjacent same-orientation walls', () => {
+    // Vertical bars at peg (0,3) and peg (2,3) — same column, 2 rows apart.
+    // applyWall stores [primary, companion] pairs so placedWalls has 4 entries.
+    const state0 = makeState();
+    const state1 = applyWall(state0, { from: { row: 0, col: 3 }, to: { row: 0, col: 4 } }); // vert bar peg(0,3)
+    const state2 = applyWall({ ...state1, currentTurn: 'red', redWallsRemaining: 9 },
+      { from: { row: 2, col: 3 }, to: { row: 2, col: 4 } }); // vert bar peg(2,3)
+
+    // Horizontal bar at peg(2,3) MUST be rejected: it crosses the vertical bar at peg(2,3).
+    const crossing: Edge = { from: { row: 2, col: 3 }, to: { row: 3, col: 3 } };
+    expect(isWallPlacementValid({ ...state2, currentTurn: 'red', redWallsRemaining: 8 }, crossing)).toBe(false);
+  });
+
+  it('allows a valid wall after two adjacent same-orientation walls', () => {
+    // Same setup as above but the new wall is at peg(2,4) — no crossing.
+    const state0 = makeState();
+    const state1 = applyWall(state0, { from: { row: 0, col: 3 }, to: { row: 0, col: 4 } });
+    const state2 = applyWall({ ...state1, currentTurn: 'red', redWallsRemaining: 9 },
+      { from: { row: 2, col: 3 }, to: { row: 2, col: 4 } });
+
+    // Horizontal bar at peg(2,4) must be accepted (different peg from the vertical bars).
+    const safe: Edge = { from: { row: 2, col: 4 }, to: { row: 3, col: 4 } };
+    expect(isWallPlacementValid({ ...state2, currentTurn: 'red', redWallsRemaining: 8 }, safe)).toBe(true);
   });
 });

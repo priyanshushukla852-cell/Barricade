@@ -32,7 +32,10 @@
               "scheme": "com.googleusercontent.apps.587302474132-dhj0k33kpgpel7hgi34tn98ttoefjs6r"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -47,9 +50,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "4fcaab9f-2b4e-46db-b7e8-74192a984357"
+        "projectId": "58fbfd56-38dc-443b-a7d7-e4e0bbd57b0c"
       }
     },
-    "owner": "priyanshu173"
+    "owner": "smash24"
   }
 }
