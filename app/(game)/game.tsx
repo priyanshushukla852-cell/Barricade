@@ -15,6 +15,9 @@ import { OfflineBanner } from '../../components/ui/OfflineBanner';
 import { ReconnectingOverlay } from '../../components/ui/ReconnectingOverlay';
 import { useGame } from '../../hooks/useGame';
 import { useGameStore } from '../../store/gameStore';
+import { useAuthStore } from '../../store/authStore';
+import { emit } from '../../hooks/useSocket';
+import { socket } from '../../lib/socketClient';
 import type { Direction, Edge, Position } from '@shared/types';
 
 export default function GameScreen() {
@@ -24,6 +27,9 @@ export default function GameScreen() {
   const gameState = useGameStore((s) => s.gameState);
   const setRoomCode = useGameStore((s) => s.setRoomCode);
   const setBoardOrigin = useGameStore((s) => s.setBoardOrigin);
+
+  const userId = useAuthStore((s) => s.userId);
+  const nickname = useAuthStore((s) => s.nickname);
 
   const [boardFlashError, setBoardFlashError] = useState(false);
   const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -41,6 +47,15 @@ export default function GameScreen() {
     if (roomCode) setRoomCode(roomCode);
     return () => setRoomCode(null);
   }, [roomCode, setRoomCode]);
+
+  // For online games, register this socket with the server room so broadcasts reach us.
+  // This covers the joiner (who navigates directly here) and the host (who arrives
+  // via the lobby after the game starts).
+  useEffect(() => {
+    if (!isOnline || !roomCode || !userId || !nickname) return;
+    if (!socket.connected) socket.connect();
+    emit('join_lobby', { roomCode, userId, nickname });
+  }, [isOnline, roomCode, userId, nickname]);
 
   useEffect(() => {
     if (!isOnline && gameState?.phase === 'game_over' && gameState.winner) {

@@ -87,8 +87,9 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
     }
     const { roomCode, userId, nickname } = result.data;
 
-    // Reconnect: player with same userId already exists in the room
     const room = getRoom(roomCode);
+
+    // Player already in the room (pre-registered via REST or reconnecting after disconnect).
     if (room) {
       const existing = room.red?.userId === userId
         ? room.red
@@ -103,12 +104,27 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
         }
         existing.socketId = socket.id;
         socket.join(roomCode);
-        if (room.state) socket.emit('game_state', room.state);
+
+        if (room.state) {
+          // Game already in progress — catch the player up.
+          socket.emit('game_state', room.state);
+          // Restart turn timer if it was cleared by a disconnect.
+          if (!room.turnTimer && room.state.phase === 'choosing') {
+            startTurnTimer(io, roomCode);
+          }
+        } else {
+          // Still in lobby — notify host when both players have an active socket.
+          const redReady = room.red !== null && room.red.socketId !== 'pending';
+          const blueReady = room.blue !== null && room.blue.socketId !== 'pending';
+          if (redReady && blueReady) {
+            io.to(roomCode).emit('lobby_ready');
+          }
+        }
         return;
       }
     }
 
-    // Normal join
+    // First-time join via socket only (no prior REST registration).
     socket.join(roomCode);
     try {
       joinRoom(roomCode, socket.id, userId, nickname);

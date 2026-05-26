@@ -20,6 +20,8 @@ export default function HomeScreen() {
   const userId = useAuthStore((s) => s.userId);
   const nickname = useAuthStore((s) => s.nickname);
   const setGameState = useGameStore((s) => s.setGameState);
+  const setPlayerColor = useGameStore((s) => s.setPlayerColor);
+  const clearSelection = useGameStore((s) => s.clearSelection);
 
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState('');
@@ -28,6 +30,9 @@ export default function HomeScreen() {
   const [joinError, setJoinError] = useState('');
 
   function handleLocalGame() {
+    // Clear online session state so local mode is fully interactive for both colors.
+    setPlayerColor(null);
+    clearSelection();
     setGameState(createInitialState(2));
     router.push({ pathname: '/(game)/game', params: { mode: 'local', roomCode: '' } });
   }
@@ -43,6 +48,10 @@ export default function HomeScreen() {
       });
       const data = (await res.json()) as { roomCode?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? 'Failed to create room');
+      // Room creator is always Red. Clear any stale game before entering lobby.
+      setGameState(null);
+      setPlayerColor('red');
+      clearSelection();
       router.push({ pathname: '/(game)/lobby', params: { roomCode: data.roomCode } });
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'Failed to create room');
@@ -67,6 +76,10 @@ export default function HomeScreen() {
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(data.error ?? 'Failed to join room');
+      // Room joiner is always Blue. Clear stale game so the loading spinner shows.
+      setGameState(null);
+      setPlayerColor('blue');
+      clearSelection();
       router.push({ pathname: '/(game)/game', params: { mode: 'online', roomCode: code } });
     } catch (err) {
       setJoinError(err instanceof Error ? err.message : 'Failed to join room');

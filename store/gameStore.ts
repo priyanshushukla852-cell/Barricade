@@ -14,7 +14,7 @@ interface GameStoreState {
 }
 
 interface GameStoreActions {
-  setGameState: (gs: GameState) => void;
+  setGameState: (gs: GameState | null) => void;
   setPlayerColor: (color: PieceColor | null) => void;
   setRoomCode: (code: string | null) => void;
   setBoardOrigin: (origin: { x: number; y: number } | null) => void;
@@ -36,7 +36,7 @@ export const useGameStore = create<GameStoreState & GameStoreActions>()((set) =>
   wallPreviewValid: false,
   reconnecting: false,
 
-  setGameState: (gs) => set({ gameState: gs }),
+  setGameState: (gs) => set({ gameState: gs ?? null }),
   setPlayerColor: (color) => set({ playerColor: color }),
   setRoomCode: (code) => set({ roomCode: code }),
   setBoardOrigin: (origin) => set({ boardOrigin: origin }),

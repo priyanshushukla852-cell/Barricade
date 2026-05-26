@@ -11,6 +11,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { socket } from '../../lib/socketClient';
 import { emit } from '../../hooks/useSocket';
+import { useAuthStore } from '../../store/authStore';
 import type { GameState, TimerOption } from '@shared/types';
 
 const TIMER_OPTIONS: TimerOption[] = [1, 2, 3, 5];
@@ -19,12 +20,18 @@ export default function LobbyScreen() {
   const { roomCode } = useLocalSearchParams<{ roomCode?: string }>();
   const code = roomCode ?? '';
 
+  const userId = useAuthStore((s) => s.userId) ?? '';
+  const nickname = useAuthStore((s) => s.nickname) ?? '';
+
   const [timerConfig, setTimerConfig] = useState<TimerOption>(2);
   const [opponentJoined, setOpponentJoined] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!socket.connected) socket.connect();
+
+    // Tell the server which socket belongs to this player so broadcasts reach us.
+    emit('join_lobby', { roomCode: code, userId, nickname });
 
     function onLobbyReady() {
       setOpponentJoined(true);
@@ -41,7 +48,7 @@ export default function LobbyScreen() {
       socket.off('lobby_ready', onLobbyReady);
       socket.off('game_state', onGameState);
     };
-  }, [code]);
+  }, [code, userId, nickname]);
 
   async function handleCopy() {
     await Clipboard.setStringAsync(code);
