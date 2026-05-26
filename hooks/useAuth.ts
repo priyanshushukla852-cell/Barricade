@@ -22,13 +22,13 @@ const GOOGLE_DISCOVERY = {
   tokenEndpoint: 'https://oauth2.googleapis.com/token',
 };
 
-// Android OAuth clients use a reversed-domain redirect URI and don't need a
-// client_secret — PKCE alone is sufficient. The intent filter in app.json
-// registers this scheme so Android can route the callback back to the app.
-const ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? '';
-const ANDROID_CLIENT_PREFIX = ANDROID_CLIENT_ID.split('.apps.')[0];
+// Desktop app OAuth clients support the browser-based authorization code +
+// PKCE flow and accept custom URI scheme redirect URIs without requiring
+// explicit registration in Google Cloud Console. The barricade:// scheme is
+// registered in app.json so Android routes the callback back to the app.
+const DESKTOP_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? '';
 const REDIRECT_URI = makeRedirectUri({
-  native: `com.googleusercontent.apps.${ANDROID_CLIENT_PREFIX}:/oauth2redirect`,
+  native: 'barricade://oauth',
 });
 
 async function applyUser(user: User): Promise<void> {
@@ -65,7 +65,7 @@ export async function signUpWithEmail(email: string, password: string): Promise<
 
 export async function signInWithGoogle(): Promise<void> {
   const request = new AuthRequest({
-    clientId: ANDROID_CLIENT_ID,
+    clientId: DESKTOP_CLIENT_ID,
     scopes: ['openid', 'profile', 'email'],
     redirectUri: REDIRECT_URI,
     responseType: 'code',
@@ -79,7 +79,7 @@ export async function signInWithGoogle(): Promise<void> {
 
   const tokenResult = await exchangeCodeAsync(
     {
-      clientId: ANDROID_CLIENT_ID,
+      clientId: DESKTOP_CLIENT_ID,
       code: result.params.code,
       redirectUri: REDIRECT_URI,
       extraParams: { code_verifier: request.codeVerifier! },

@@ -168,7 +168,8 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 32,
-    paddingTop: 32,
+    justifyContent: 'center',
+    paddingBottom: 80,
     gap: 24,
   },
   section: { gap: 12 },
