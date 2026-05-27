@@ -13,6 +13,7 @@ export type Room = {
   red: RoomPlayer | null;
   blue: RoomPlayer | null;
   startedAt: Date | null;
+  autoStart: boolean;
   disconnectTimers: Map<string, NodeJS.Timeout>;
   tickInterval: NodeJS.Timeout | null;
   turnTimer: NodeJS.Timeout | null;
@@ -42,6 +43,26 @@ export function createRoom(socketId: string, userId: string, nickname: string): 
     red: { socketId, userId, nickname, color: 'red' },
     blue: null,
     startedAt: null,
+    autoStart: false,
+    disconnectTimers: new Map(),
+    tickInterval: null,
+    turnTimer: null,
+  });
+  return roomCode;
+}
+
+export function createMatchedRoom(
+  red: { userId: string; nickname: string },
+  blue: { userId: string; nickname: string },
+): string {
+  const roomCode = generateRoomCode();
+  rooms.set(roomCode, {
+    roomCode,
+    state: null,
+    red: { socketId: 'pending', userId: red.userId, nickname: red.nickname, color: 'red' },
+    blue: { socketId: 'pending', userId: blue.userId, nickname: blue.nickname, color: 'blue' },
+    startedAt: null,
+    autoStart: true,
     disconnectTimers: new Map(),
     tickInterval: null,
     turnTimer: null,

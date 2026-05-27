@@ -106,6 +106,13 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitle}>Online Game</Text>
 
           <Pressable
+            style={[styles.btn, styles.btnPrimary]}
+            onPress={() => router.push({ pathname: '/(game)/matchmaking' })}
+          >
+            <Text style={styles.btnPrimaryText}>Find Opponent</Text>
+          </Pressable>
+
+          <Pressable
             style={[styles.btn, styles.btnPrimary, createLoading && styles.btnDisabled]}
             onPress={handleCreateRoom}
             disabled={createLoading}

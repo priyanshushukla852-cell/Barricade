@@ -17,8 +17,9 @@ import type { GameState, TimerOption } from '@shared/types';
 const TIMER_OPTIONS: TimerOption[] = [1, 2, 3, 5];
 
 export default function LobbyScreen() {
-  const { roomCode } = useLocalSearchParams<{ roomCode?: string }>();
+  const { roomCode, autoStart } = useLocalSearchParams<{ roomCode?: string; autoStart?: string }>();
   const code = roomCode ?? '';
+  const isAutoStart = autoStart === 'true';
 
   const userId = useAuthStore((s) => s.userId) ?? '';
   const nickname = useAuthStore((s) => s.nickname) ?? '';
@@ -29,8 +30,6 @@ export default function LobbyScreen() {
 
   useEffect(() => {
     if (!socket.connected) socket.connect();
-
-    // Tell the server which socket belongs to this player so broadcasts reach us.
     emit('join_lobby', { roomCode: code, userId, nickname });
 
     function onLobbyReady() {
@@ -65,6 +64,34 @@ export default function LobbyScreen() {
     router.replace('/(game)/home');
   }
 
+  // ── Auto-start (random match) UI ────────────────────────────────────────────
+  if (isAutoStart) {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <View style={styles.content}>
+          <Text style={styles.matchedLabel}>Opponent found!</Text>
+
+          {!opponentJoined ? (
+            <View style={styles.waitingRow}>
+              <ActivityIndicator color="#4A3728" />
+              <Text style={styles.waitingText}>Connecting…</Text>
+            </View>
+          ) : (
+            <View style={styles.waitingRow}>
+              <ActivityIndicator color="#22AA66" />
+              <Text style={styles.readyText}>Starting game…</Text>
+            </View>
+          )}
+
+          <Pressable style={[styles.btn, styles.btnCancel, { marginTop: 32 }]} onPress={handleCancel}>
+            <Text style={styles.btnCancelText}>Cancel</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Normal lobby UI ──────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.content}>
@@ -125,6 +152,13 @@ const styles = StyleSheet.create({
     paddingTop: 48,
     alignItems: 'center',
     gap: 16,
+  },
+  matchedLabel: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1A1A1A',
+    letterSpacing: 0.5,
+    marginBottom: 8,
   },
   label: {
     fontSize: 13,

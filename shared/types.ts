@@ -28,6 +28,9 @@ export type MovePayload = { roomCode: string; direction: Direction };
 export type WallPayload = { roomCode: string; wall: Edge };
 export type JoinPayload = { roomCode: string; userId: string; nickname: string };
 export type StartPayload = { roomCode: string; timerConfig: TimerOption };
+export type QueuePayload = { userId: string; nickname: string };
+export type LeaveQueuePayload = { userId: string };
+export type MatchedPayload = { roomCode: string; playerColor: PieceColor };
 
 export interface ClientToServerEvents {
   join_lobby: (payload: JoinPayload) => void;
@@ -35,6 +38,8 @@ export interface ClientToServerEvents {
   move_piece: (payload: MovePayload) => void;
   place_wall: (payload: WallPayload) => void;
   leave_game: (payload: { roomCode: string }) => void;
+  join_queue: (payload: QueuePayload) => void;
+  leave_queue: (payload: LeaveQueuePayload) => void;
 }
 
 export interface ServerToClientEvents {
@@ -46,5 +51,6 @@ export interface ServerToClientEvents {
     reason: 'reached_goal' | 'timeout' | 'opponent_left';
   }) => void;
   opponent_left: (payload: { reconnecting: boolean; secondsLeft?: number }) => void;
+  matched: (payload: MatchedPayload) => void;
   error: (payload: { message: string }) => void;
 }

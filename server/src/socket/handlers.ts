@@ -7,8 +7,10 @@ import {
   joinRoom,
   updateState,
   deleteRoom,
+  createMatchedRoom,
 } from '../rooms/roomManager';
 import type { Room } from '../rooms/roomManager';
+import { enqueue, dequeue, dequeueBySocketId, tryMatch } from '../rooms/matchmakingQueue';
 import { createInitialState, applyMove, applyWall, checkWinner } from '../game';
 import { saveGame } from '../db/saveGame';
 
@@ -30,6 +32,8 @@ const MoveSchema = z.object({
 });
 const WallSchema = z.object({ roomCode: z.string(), wall: EdgeSchema });
 const LeaveSchema = z.object({ roomCode: z.string() });
+const QueueSchema = z.object({ userId: z.string(), nickname: z.string() });
+const LeaveQueueSchema = z.object({ userId: z.string() });
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -113,11 +117,19 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
             startTurnTimer(io, roomCode);
           }
         } else {
-          // Still in lobby — notify host when both players have an active socket.
+          // Still in lobby — notify when both players have an active socket.
           const redReady = room.red !== null && room.red.socketId !== 'pending';
           const blueReady = room.blue !== null && room.blue.socketId !== 'pending';
           if (redReady && blueReady) {
             io.to(roomCode).emit('lobby_ready');
+            // Auto-start for random-matched rooms (no host needed).
+            if (room.autoStart) {
+              const state = createInitialState(2);
+              updateState(roomCode, state);
+              room.startedAt = new Date();
+              startTurnTimer(io, roomCode);
+              io.to(roomCode).emit('game_state', state);
+            }
           }
         }
         return;
@@ -275,7 +287,47 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
     deleteRoom(roomCode);
   });
 
+  socket.on('join_queue', (payload) => {
+    const result = QueueSchema.safeParse(payload);
+    if (!result.success) {
+      socket.emit('error', { message: 'Invalid join_queue payload' });
+      return;
+    }
+    const { userId, nickname } = result.data;
+    enqueue({ userId, socketId: socket.id, nickname, joinedAt: Date.now() });
+
+    const match = tryMatch();
+    if (!match) return;
+
+    const [player1, player2] = match;
+    const roomCode = createMatchedRoom(
+      { userId: player1.userId, nickname: player1.nickname },
+      { userId: player2.userId, nickname: player2.nickname },
+    );
+
+    const sock1 = io.sockets.sockets.get(player1.socketId);
+    const sock2 = io.sockets.sockets.get(player2.socketId);
+
+    if (!sock1 || !sock2) {
+      // A socket disconnected between queuing and matching — re-queue the survivor.
+      deleteRoom(roomCode);
+      if (sock1) enqueue(player1);
+      if (sock2) enqueue(player2);
+      return;
+    }
+
+    sock1.emit('matched', { roomCode, playerColor: 'red' });
+    sock2.emit('matched', { roomCode, playerColor: 'blue' });
+  });
+
+  socket.on('leave_queue', (payload) => {
+    const result = LeaveQueueSchema.safeParse(payload);
+    if (!result.success) return;
+    dequeue(result.data.userId);
+  });
+
   socket.on('disconnect', () => {
+    dequeueBySocketId(socket.id);
     const found = getRoomBySocketId(socket.id);
     if (!found) return;
     const { roomCode, room } = found;
