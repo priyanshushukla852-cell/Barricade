@@ -5,17 +5,16 @@ import { useAuthStore } from '../store/authStore';
 
 export default function SplashScreen() {
   const token = useAuthStore((s) => s.token);
+  const hydrated = useAuthStore((s) => s.hydrated);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (token) {
-        router.replace('/(game)/home');
-      } else {
-        router.replace('/(auth)/auth');
-      }
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [token]);
+    if (!hydrated) return;
+    if (token) {
+      router.replace('/(game)/home');
+    } else {
+      router.replace('/(auth)/auth');
+    }
+  }, [hydrated, token]);
 
   return (
     <View style={styles.screen}>

@@ -38,6 +38,7 @@ onAuthStateChanged(auth, async (user) => {
   } else {
     useAuthStore.getState().clearUser();
   }
+  useAuthStore.getState().setHydrated();
 });
 
 export async function signInWithEmail(email: string, password: string): Promise<void> {

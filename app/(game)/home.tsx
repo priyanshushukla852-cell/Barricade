@@ -155,7 +155,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingTop: 28,
+    paddingBottom: 12,
   },
   title: {
     fontSize: 28,
