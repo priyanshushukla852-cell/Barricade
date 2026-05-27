@@ -28,10 +28,10 @@ export function useSocket({
       setGameState(gs);
     }
 
-    function onTimerTick({ seconds }: { seconds: number }) {
+    function onTimerTick({ redTimeRemaining, blueTimeRemaining }: { redTimeRemaining: number; blueTimeRemaining: number }) {
       const current = useGameStore.getState().gameState;
       if (!current) return;
-      setGameState({ ...current, timerSeconds: seconds });
+      setGameState({ ...current, redTimeRemaining, blueTimeRemaining });
     }
 
     function onGameOver({

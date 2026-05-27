@@ -25,11 +25,13 @@ describe('createInitialState', () => {
     expect(state.winner).toBeNull();
   });
 
-  it('sets timerSeconds from timerConfig', () => {
-    expect(createInitialState(1).timerSeconds).toBe(60);
-    expect(createInitialState(2).timerSeconds).toBe(120);
-    expect(createInitialState(3).timerSeconds).toBe(180);
-    expect(createInitialState(5).timerSeconds).toBe(300);
+  it('sets per-player timers from timerConfig', () => {
+    const s1 = createInitialState(1);
+    expect(s1.redTimeRemaining).toBe(60);
+    expect(s1.blueTimeRemaining).toBe(60);
+    const s5 = createInitialState(5);
+    expect(s5.redTimeRemaining).toBe(300);
+    expect(s5.blueTimeRemaining).toBe(300);
   });
 });
 

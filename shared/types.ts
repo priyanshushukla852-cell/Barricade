@@ -18,7 +18,8 @@ export interface GameState {
   currentTurn: PieceColor;
   phase: 'choosing' | 'game_over';
   winner: PieceColor | null;
-  timerSeconds: number; // Current countdown (server-managed)
+  redTimeRemaining: number; // Red player's remaining seconds
+  blueTimeRemaining: number; // Blue player's remaining seconds
   timerConfig: TimerOption; // Minutes per turn, set at game start
 }
 
@@ -45,7 +46,7 @@ export interface ClientToServerEvents {
 export interface ServerToClientEvents {
   lobby_ready: () => void;
   game_state: (state: GameState) => void;
-  timer_tick: (payload: { seconds: number }) => void;
+  timer_tick: (payload: { redTimeRemaining: number; blueTimeRemaining: number }) => void;
   game_over: (payload: {
     winner: PieceColor;
     reason: 'reached_goal' | 'timeout' | 'opponent_left';

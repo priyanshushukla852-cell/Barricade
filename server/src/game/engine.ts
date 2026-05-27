@@ -12,7 +12,8 @@ export function createInitialState(timerConfig: TimerOption = 5): GameState {
     currentTurn: 'red',
     phase: 'choosing',
     winner: null,
-    timerSeconds: timerConfig * 60,
+    redTimeRemaining: timerConfig * 60,
+    blueTimeRemaining: timerConfig * 60,
     timerConfig,
   };
 }

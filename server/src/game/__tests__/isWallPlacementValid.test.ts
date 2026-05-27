@@ -13,7 +13,8 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     currentTurn: 'red',
     phase: 'choosing',
     winner: null,
-    timerSeconds: 300,
+    redTimeRemaining: 300,
+    blueTimeRemaining: 300,
     timerConfig: 5,
     ...overrides,
   };

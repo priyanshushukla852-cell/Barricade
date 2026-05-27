@@ -37,9 +37,11 @@ describe('createInitialState', () => {
   });
 
   it.each<TimerOption>([1, 2, 3, 5])(
-    'timerSeconds === timerConfig * 60 for timerConfig=%i',
+    'both player timers === timerConfig * 60 for timerConfig=%i',
     (timerConfig) => {
-      expect(createInitialState(timerConfig).timerSeconds).toBe(timerConfig * 60);
+      const state = createInitialState(timerConfig);
+      expect(state.redTimeRemaining).toBe(timerConfig * 60);
+      expect(state.blueTimeRemaining).toBe(timerConfig * 60);
     },
   );
 });

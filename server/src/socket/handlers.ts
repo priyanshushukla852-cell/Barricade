@@ -60,13 +60,22 @@ export function startTurnTimer(io: AppServer, roomCode: string): void {
 
   clearTurnTimer(room);
 
-  const durationMs = room.state.timerSeconds * 1000;
+  const activePlayer = room.state.currentTurn;
+  const durationMs =
+    (activePlayer === 'red' ? room.state.redTimeRemaining : room.state.blueTimeRemaining) * 1000;
 
   room.tickInterval = setInterval(() => {
     const r = getRoom(roomCode);
     if (!r || !r.state) return;
-    r.state.timerSeconds = Math.max(0, r.state.timerSeconds - 1);
-    io.to(roomCode).emit('timer_tick', { seconds: r.state.timerSeconds });
+    if (r.state.currentTurn === 'red') {
+      r.state.redTimeRemaining = Math.max(0, r.state.redTimeRemaining - 1);
+    } else {
+      r.state.blueTimeRemaining = Math.max(0, r.state.blueTimeRemaining - 1);
+    }
+    io.to(roomCode).emit('timer_tick', {
+      redTimeRemaining: r.state.redTimeRemaining,
+      blueTimeRemaining: r.state.blueTimeRemaining,
+    });
   }, 1000);
 
   room.turnTimer = setTimeout(() => {
