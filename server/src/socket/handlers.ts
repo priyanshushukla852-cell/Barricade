@@ -133,7 +133,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
             io.to(roomCode).emit('lobby_ready');
             // Auto-start for random-matched rooms (no host needed).
             if (room.autoStart) {
-              const state = createInitialState(2);
+              const state = createInitialState(3);
               updateState(roomCode, state);
               room.startedAt = new Date();
               startTurnTimer(io, roomCode);
