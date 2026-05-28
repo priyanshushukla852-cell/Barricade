@@ -9,7 +9,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { BoardComponent } from '../../components/board/BoardComponent';
 import { TurnIndicator } from '../../components/ui/TurnIndicator';
-import { TimerDisplay } from '../../components/ui/TimerDisplay';
+import { PlayerTimer } from '../../components/ui/TimerDisplay';
 import { WallHand } from '../../components/ui/WallHand';
 import { OfflineBanner } from '../../components/ui/OfflineBanner';
 import { ReconnectingOverlay } from '../../components/ui/ReconnectingOverlay';
@@ -25,12 +25,20 @@ export default function GameScreen() {
   const isOnline = mode === 'online';
 
   const gameState = useGameStore((s) => s.gameState);
+  const playerColor = useGameStore((s) => s.playerColor);
   const setRoomCode = useGameStore((s) => s.setRoomCode);
   const setBoardOrigin = useGameStore((s) => s.setBoardOrigin);
-  const setGameState = useGameStore((s) => s.setGameState);
 
   const userId = useAuthStore((s) => s.userId);
   const nickname = useAuthStore((s) => s.nickname);
+
+  // Which player's clock sits at the bottom (nearest the player) vs the top.
+  // Local game: Blue at bottom (row 8), Red at top rotated 180° so they can read it.
+  // Online: my color at bottom, opponent at top.
+  const isLocal = !isOnline;
+  const showTimer = isOnline || (gameState !== null && gameState.timerConfig !== 0);
+  const bottomColor: PieceColor = isLocal ? 'blue' : (playerColor ?? 'blue');
+  const topColor: PieceColor = bottomColor === 'red' ? 'blue' : 'red';
 
   const [boardFlashError, setBoardFlashError] = useState(false);
   const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -121,9 +129,10 @@ export default function GameScreen() {
 
   return (
     <SafeAreaView style={styles.screen}>
+      {showTimer && <PlayerTimer color={topColor} flipped={isLocal} />}
+
       <View style={styles.header}>
         <TurnIndicator />
-        {(isOnline || (gameState !== null && gameState.timerConfig !== 0)) && <TimerDisplay />}
       </View>
 
       {gameState === null ? (
@@ -149,6 +158,8 @@ export default function GameScreen() {
           <Text style={styles.counterText}>{gameState?.blueWallsRemaining ?? 10}</Text>
         </View>
       </View>
+
+      {showTimer && <PlayerTimer color={bottomColor} />}
 
       <ReconnectingOverlay />
       <OfflineBanner />
