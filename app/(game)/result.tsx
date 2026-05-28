@@ -21,7 +21,10 @@ export default function ResultScreen() {
     if (reason === 'reached_goal') return "Reached the opponent's home!";
     if (reason === 'opponent_left') return 'Opponent left the game.';
     if (reason === 'timeout') {
-      if (!playerColor) return 'Time ran out!';
+      if (!playerColor) {
+        const loser = winner === 'red' ? 'blue' : 'red';
+        return `${loser.charAt(0).toUpperCase() + loser.slice(1)} ran out of time!`;
+      }
       return playerColor === winner ? 'Opponent ran out of time!' : 'You ran out of time!';
     }
     return '';
