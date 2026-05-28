@@ -13,6 +13,15 @@ import { signOut } from '../../hooks/useAuth';
 import { useAuthStore } from '../../store/authStore';
 import { useGameStore } from '../../store/gameStore';
 import { createInitialState } from '@shared/game';
+import type { TimerOption } from '@shared/types';
+
+const LOCAL_TIMER_OPTIONS: { value: TimerOption; label: string }[] = [
+  { value: 0, label: '∞' },
+  { value: 1, label: '1 min' },
+  { value: 2, label: '2 min' },
+  { value: 3, label: '3 min' },
+  { value: 5, label: '5 min' },
+];
 
 const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL ?? 'http://localhost:3001';
 
@@ -23,6 +32,7 @@ export default function HomeScreen() {
   const setPlayerColor = useGameStore((s) => s.setPlayerColor);
   const clearSelection = useGameStore((s) => s.clearSelection);
 
+  const [localTimer, setLocalTimer] = useState<TimerOption>(0);
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState('');
   const [joinCode, setJoinCode] = useState('');
@@ -30,10 +40,9 @@ export default function HomeScreen() {
   const [joinError, setJoinError] = useState('');
 
   function handleLocalGame() {
-    // Clear online session state so local mode is fully interactive for both colors.
     setPlayerColor(null);
     clearSelection();
-    setGameState(createInitialState(2));
+    setGameState(createInitialState(localTimer));
     router.push({ pathname: '/(game)/game', params: { mode: 'local', roomCode: '' } });
   }
 
@@ -98,9 +107,26 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.content}>
-        <Pressable style={[styles.btn, styles.btnPrimary]} onPress={handleLocalGame}>
-          <Text style={styles.btnPrimaryText}>Local Game</Text>
-        </Pressable>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Local Game</Text>
+          <Text style={styles.timerLabel}>Time per player</Text>
+          <View style={styles.timerRow}>
+            {LOCAL_TIMER_OPTIONS.map(({ value, label }) => (
+              <Pressable
+                key={value}
+                style={[styles.timerBtn, localTimer === value && styles.timerBtnSelected]}
+                onPress={() => setLocalTimer(value)}
+              >
+                <Text style={[styles.timerBtnText, localTimer === value && styles.timerBtnTextSelected]}>
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable style={[styles.btn, styles.btnPrimary]} onPress={handleLocalGame}>
+            <Text style={styles.btnPrimaryText}>Start Local Game</Text>
+          </Pressable>
+        </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Online Game</Text>
@@ -181,6 +207,28 @@ const styles = StyleSheet.create({
     gap: 24,
   },
   section: { gap: 12 },
+  timerLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#999',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  timerRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  timerBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#378ADD',
+  },
+  timerBtnSelected: { backgroundColor: '#378ADD' },
+  timerBtnText: { fontSize: 13, fontWeight: '600', color: '#378ADD' },
+  timerBtnTextSelected: { color: '#FFF' },
   sectionTitle: {
     fontSize: 13,
     fontWeight: '700',

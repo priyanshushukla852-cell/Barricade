@@ -3,7 +3,7 @@
 export type Position = { row: number; col: number };
 export type PieceColor = 'red' | 'blue';
 export type Direction = 'up' | 'down' | 'left' | 'right';
-export type TimerOption = 1 | 2 | 3 | 5; // minutes per turn
+export type TimerOption = 0 | 1 | 2 | 3 | 5; // minutes per turn; 0 = unlimited (local only)
 
 // An edge between two adjacent squares. Always normalize before storing or comparing.
 // "Lesser" position = smaller row first; if same row, smaller col first.

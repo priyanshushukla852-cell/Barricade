@@ -18,7 +18,7 @@ import { useGameStore } from '../../store/gameStore';
 import { useAuthStore } from '../../store/authStore';
 import { emit } from '../../hooks/useSocket';
 import { socket } from '../../lib/socketClient';
-import type { Direction, Edge, Position } from '@shared/types';
+import type { Direction, Edge, PieceColor, Position } from '@shared/types';
 
 export default function GameScreen() {
   const { mode, roomCode } = useLocalSearchParams<{ mode?: string; roomCode?: string }>();
@@ -27,6 +27,7 @@ export default function GameScreen() {
   const gameState = useGameStore((s) => s.gameState);
   const setRoomCode = useGameStore((s) => s.setRoomCode);
   const setBoardOrigin = useGameStore((s) => s.setBoardOrigin);
+  const setGameState = useGameStore((s) => s.setGameState);
 
   const userId = useAuthStore((s) => s.userId);
   const nickname = useAuthStore((s) => s.nickname);
@@ -57,11 +58,39 @@ export default function GameScreen() {
     emit('join_lobby', { roomCode, userId, nickname });
   }, [isOnline, roomCode, userId, nickname]);
 
+  // Client-side chess clock for local games.
+  useEffect(() => {
+    if (isOnline) return;
+    const id = setInterval(() => {
+      const state = useGameStore.getState().gameState;
+      if (!state || state.phase !== 'choosing' || state.timerConfig === 0) return;
+      const active = state.currentTurn;
+      const remaining = active === 'red' ? state.redTimeRemaining : state.blueTimeRemaining;
+      const next = Math.max(0, remaining - 1);
+      if (next === 0) {
+        const winner: PieceColor = active === 'red' ? 'blue' : 'red';
+        useGameStore.getState().setGameState({ ...state, winner, phase: 'game_over' });
+      } else {
+        useGameStore.getState().setGameState(
+          active === 'red'
+            ? { ...state, redTimeRemaining: next }
+            : { ...state, blueTimeRemaining: next },
+        );
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [isOnline]);
+
   useEffect(() => {
     if (!isOnline && gameState?.phase === 'game_over' && gameState.winner) {
+      const timedOut =
+        gameState.timerConfig !== 0 &&
+        (gameState.winner === 'blue'
+          ? gameState.redTimeRemaining === 0
+          : gameState.blueTimeRemaining === 0);
       router.replace({
         pathname: '/(game)/result',
-        params: { winner: gameState.winner, reason: 'reached_goal' },
+        params: { winner: gameState.winner, reason: timedOut ? 'timeout' : 'reached_goal' },
       });
     }
   }, [isOnline, gameState?.phase, gameState?.winner]);
@@ -94,7 +123,7 @@ export default function GameScreen() {
     <SafeAreaView style={styles.screen}>
       <View style={styles.header}>
         <TurnIndicator />
-        {isOnline && <TimerDisplay />}
+        {(isOnline || (gameState !== null && gameState.timerConfig !== 0)) && <TimerDisplay />}
       </View>
 
       {gameState === null ? (
