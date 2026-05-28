@@ -1,5 +1,6 @@
 import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useGameStore } from '../../store/gameStore';
 import type { PieceColor } from '@shared/types';
 
 const PIECE_COLORS: Record<PieceColor, string> = {
@@ -7,19 +8,26 @@ const PIECE_COLORS: Record<PieceColor, string> = {
   blue: '#378ADD',
 };
 
-const REASON_TEXT: Record<string, string> = {
-  reached_goal: "Reached the opponent's home!",
-  timeout: 'Opponent ran out of time!',
-  opponent_left: 'Opponent left the game.',
-};
-
 export default function ResultScreen() {
   const { winner, reason } = useLocalSearchParams<{ winner?: string; reason?: string }>();
+  const playerColor = useGameStore((s) => s.playerColor);
 
   const isValidColor = winner === 'red' || winner === 'blue';
   const color = isValidColor ? PIECE_COLORS[winner as PieceColor] : '#1A1A1A';
   const label = winner ? winner.toUpperCase() : '?';
-  const subtitle = reason ? (REASON_TEXT[reason] ?? '') : '';
+
+  function getSubtitle() {
+    if (!reason) return '';
+    if (reason === 'reached_goal') return "Reached the opponent's home!";
+    if (reason === 'opponent_left') return 'Opponent left the game.';
+    if (reason === 'timeout') {
+      if (!playerColor) return 'Time ran out!';
+      return playerColor === winner ? 'Opponent ran out of time!' : 'You ran out of time!';
+    }
+    return '';
+  }
+
+  const subtitle = getSubtitle();
 
   return (
     <SafeAreaView style={styles.screen}>
