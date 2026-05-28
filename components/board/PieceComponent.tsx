@@ -21,18 +21,20 @@ type Props = {
   position: Position;
   onPress: () => void;
   disabled: boolean;
+  flipped?: boolean;
 };
 
-export function PieceComponent({ color, position, onPress, disabled }: Props) {
+export function PieceComponent({ color, position, onPress, disabled, flipped = false }: Props) {
   const reducedMotion = useReducedMotion();
   const size = CELL_SIZE * 0.65;
 
+  const visualRow = flipped ? 8 - position.row : position.row;
   const x = useSharedValue(position.col * CELL_SIZE);
-  const y = useSharedValue(position.row * CELL_SIZE);
+  const y = useSharedValue(visualRow * CELL_SIZE);
 
   useEffect(() => {
     const targetX = position.col * CELL_SIZE;
-    const targetY = position.row * CELL_SIZE;
+    const targetY = (flipped ? 8 - position.row : position.row) * CELL_SIZE;
     if (reducedMotion) {
       x.value = targetX;
       y.value = targetY;

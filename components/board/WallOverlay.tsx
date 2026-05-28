@@ -16,27 +16,35 @@ const BOARD_PIXEL_SIZE = CELL_SIZE * 9;
 
 const WALL_LENGTH = CELL_SIZE * 2;
 
-function wallPositionStyle(wall: Edge) {
+function wallPositionStyle(wall: Edge, flipped = false) {
   const isHorizontalAdjacency = wall.from.row === wall.to.row;
   if (isHorizontalAdjacency) {
-    // Vertical wall on the border between two horizontally adjacent squares.
-    // from is the lesser position (smaller col), so from.row is the top cell.
+    // Vertical wall bar spanning 2 rows on the border between two horizontally adjacent squares.
     const col = Math.max(wall.from.col, wall.to.col);
+    // Standard: top = from.row * CS  (wall spans down from that row)
+    // Flipped:  rows r and r+1 appear at visual y (8-r) and (7-r)*CS → top = (7-r)*CS
+    const top = flipped
+      ? (7 - wall.from.row) * CELL_SIZE
+      : wall.from.row * CELL_SIZE;
     return {
       position: 'absolute' as const,
       left: col * CELL_SIZE - WALL_THICKNESS / 2,
-      top: wall.from.row * CELL_SIZE,
+      top,
       width: WALL_THICKNESS,
       height: WALL_LENGTH,
       borderRadius: WALL_THICKNESS / 2,
     };
   }
-  // Horizontal wall on the border between two vertically adjacent squares.
-  // from is the lesser position (smaller row), so from.col is the left cell.
+  // Horizontal wall bar spanning 2 cols on the border between two vertically adjacent squares.
   const row = Math.max(wall.from.row, wall.to.row);
+  // Standard: top = row * CS - WT/2  (centered on the border below the lesser row)
+  // Flipped:  border between rows r and r+1 appears at visual y = (8-r)*CS = (9-max_row)*CS
+  const top = flipped
+    ? (9 - row) * CELL_SIZE - WALL_THICKNESS / 2
+    : row * CELL_SIZE - WALL_THICKNESS / 2;
   return {
     position: 'absolute' as const,
-    top: row * CELL_SIZE - WALL_THICKNESS / 2,
+    top,
     left: wall.from.col * CELL_SIZE,
     width: WALL_LENGTH,
     height: WALL_THICKNESS,
@@ -48,10 +56,12 @@ function AnimatedWallSegment({
   wall,
   color,
   skipAnimation,
+  flipped,
 }: {
   wall: Edge;
   color: string;
   skipAnimation: boolean;
+  flipped: boolean;
 }) {
   const opacity = useSharedValue(skipAnimation ? 1 : 0);
 
@@ -67,16 +77,16 @@ function AnimatedWallSegment({
 
   return (
     <Animated.View
-      style={[wallPositionStyle(wall), { backgroundColor: color }, animatedStyle]}
+      style={[wallPositionStyle(wall, flipped), { backgroundColor: color }, animatedStyle]}
     />
   );
 }
 
-function WallPreview({ wall, color }: { wall: Edge; color: string }) {
-  return <View style={[wallPositionStyle(wall), { backgroundColor: color }]} />;
+function WallPreview({ wall, color, flipped }: { wall: Edge; color: string; flipped: boolean }) {
+  return <View style={[wallPositionStyle(wall, flipped), { backgroundColor: color }]} />;
 }
 
-export function WallOverlay() {
+export function WallOverlay({ flipped = false }: { flipped?: boolean }) {
   const placedWalls = useGameStore((s) => s.gameState?.placedWalls ?? []);
   const wallPreview = useGameStore((s) => s.wallPreview);
   const wallPreviewValid = useGameStore((s) => s.wallPreviewValid);
@@ -103,6 +113,7 @@ export function WallOverlay() {
             wall={wall}
             color="#333333"
             skipAnimation={reducedMotion}
+            flipped={flipped}
           />
         );
       })}
@@ -110,6 +121,7 @@ export function WallOverlay() {
         <WallPreview
           wall={wallPreview}
           color={wallPreviewValid ? '#22CC88' : '#EE4444'}
+          flipped={flipped}
         />
       )}
     </View>

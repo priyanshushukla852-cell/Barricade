@@ -18,6 +18,7 @@ function snapToEdge(
   absY: number,
   origin: { x: number; y: number },
   orientation: Orientation,
+  flipped: boolean,
 ): Edge | null {
   const relX = absX - origin.x;
   const relY = absY - origin.y;
@@ -25,8 +26,11 @@ function snapToEdge(
 
   if (relX < 0 || relX > boardPx || relY < 0 || relY > boardPx) return null;
 
+  // When the board is flipped (Red player), y=0 at the top corresponds to data row 8.
+  const adjustedRelY = flipped ? boardPx - relY : relY;
+
   const fractCol = relX / CELL_SIZE;
-  const fractRow = relY / CELL_SIZE;
+  const fractRow = adjustedRelY / CELL_SIZE;
   const nearestCol = Math.round(fractCol);
   const nearestRow = Math.round(fractRow);
 
@@ -75,15 +79,15 @@ function WallToken({
       onStartShouldSetPanResponder: () => canDragRef.current,
       onPanResponderGrant: () => startRef.current(),
       onPanResponderMove: (_, { moveX, moveY }) => {
-        const origin = useGameStore.getState().boardOrigin;
-        if (!origin) return;
-        const edge = snapToEdge(moveX, moveY, origin, orientation);
+        const { boardOrigin, playerColor } = useGameStore.getState();
+        if (!boardOrigin) return;
+        const edge = snapToEdge(moveX, moveY, boardOrigin, orientation, playerColor === 'red');
         if (edge) moveRef.current(edge);
       },
       onPanResponderRelease: (_, { moveX, moveY }) => {
-        const origin = useGameStore.getState().boardOrigin;
-        if (!origin) return;
-        const edge = snapToEdge(moveX, moveY, origin, orientation);
+        const { boardOrigin, playerColor } = useGameStore.getState();
+        if (!boardOrigin) return;
+        const edge = snapToEdge(moveX, moveY, boardOrigin, orientation, playerColor === 'red');
         if (edge) {
           dropRef.current(edge);
         } else {

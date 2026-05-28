@@ -25,6 +25,9 @@ export function BoardComponent({ onSquarePress, flashError = false }: Props) {
   const playerColor = useGameStore((s) => s.playerColor);
   const highlightedSquares = useGameStore((s) => s.highlightedSquares);
 
+  // Online red player sees the board flipped: red's side at the bottom, moving upward.
+  const flipped = playerColor === 'red';
+
   // Local game: playerColor is null — always interactive for the active player.
   // Online game: only interactive when it's your assigned color's turn.
   const isMyTurn = !!gameState && (playerColor === null || playerColor === gameState.currentTurn);
@@ -47,18 +50,21 @@ export function BoardComponent({ onSquarePress, flashError = false }: Props) {
         flashError && { borderWidth: 2, borderColor: '#EE2222' },
       ]}
     >
-      {Array.from({ length: 9 }, (_, row) => (
-        <View key={row} style={{ flexDirection: 'row' }}>
-          {Array.from({ length: 9 }, (_, col) => (
-            <SquareComponent
-              key={col}
-              position={{ row, col }}
-              isHighlighted={highlightedSquares.some((s) => s.row === row && s.col === col)}
-              onPress={() => handlePress({ row, col })}
-            />
-          ))}
-        </View>
-      ))}
+      {Array.from({ length: 9 }, (_, visualRow) => {
+        const dataRow = flipped ? 8 - visualRow : visualRow;
+        return (
+          <View key={dataRow} style={{ flexDirection: 'row' }}>
+            {Array.from({ length: 9 }, (_, col) => (
+              <SquareComponent
+                key={col}
+                position={{ row: dataRow, col }}
+                isHighlighted={highlightedSquares.some((s) => s.row === dataRow && s.col === col)}
+                onPress={() => handlePress({ row: dataRow, col })}
+              />
+            ))}
+          </View>
+        );
+      })}
 
       {/* Piece overlay — box-none so PieceComponents receive their own taps */}
       {gameState && (
@@ -71,17 +77,19 @@ export function BoardComponent({ onSquarePress, flashError = false }: Props) {
             position={gameState.redPosition}
             onPress={() => handlePress(gameState.redPosition)}
             disabled={!isMyTurn}
+            flipped={flipped}
           />
           <PieceComponent
             color="blue"
             position={gameState.bluePosition}
             onPress={() => handlePress(gameState.bluePosition)}
             disabled={!isMyTurn}
+            flipped={flipped}
           />
         </View>
       )}
 
-      <WallOverlay />
+      <WallOverlay flipped={flipped} />
     </View>
   );
 }
