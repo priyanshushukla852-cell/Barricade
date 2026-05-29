@@ -328,6 +328,14 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
     const room = getRoom(roomCode);
     if (!room) return;
 
+    // Game not yet started (lobby cancel) — clean up without penalties.
+    if (!room.state) {
+      clearTurnTimer(room);
+      deleteRoom(roomCode);
+      socket.to(roomCode).emit('opponent_left', { reconnecting: false });
+      return;
+    }
+
     const leavingColor = room.red?.socketId === socket.id ? 'red'
       : room.blue?.socketId === socket.id ? 'blue'
       : null;

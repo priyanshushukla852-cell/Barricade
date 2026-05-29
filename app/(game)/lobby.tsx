@@ -50,14 +50,20 @@ export default function LobbyScreen() {
       router.replace({ pathname: '/(game)/game', params: { mode: 'online', roomCode: code } });
     }
 
+    function onOpponentLeft() {
+      router.replace('/(game)/home');
+    }
+
     socket.on('lobby_ready', onLobbyReady);
     socket.on('lobby_info', onLobbyInfo);
     socket.on('game_state', onGameState);
+    socket.on('opponent_left', onOpponentLeft);
 
     return () => {
       socket.off('lobby_ready', onLobbyReady);
       socket.off('lobby_info', onLobbyInfo);
       socket.off('game_state', onGameState);
+      socket.off('opponent_left', onOpponentLeft);
     };
   }, [code, userId, nickname]);
 
