@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
 import '../hooks/useAuth'; // registers onAuthStateChanged so hydrated flag is set on every launch
+import '../lib/sentry';
 
 export default function RootLayout() {
   return (

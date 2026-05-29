@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { getRating, getProfile } from '../db/ratings';
+import logger from '../logger';
 
 const router = Router();
 
@@ -16,7 +17,7 @@ router.get('/me', async (req, res) => {
     const data = await getRating(result.data.userId);
     res.json(data);
   } catch (err) {
-    console.error('GET /ratings/me error:', err);
+    logger.error({ err }, 'GET /ratings/me error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -31,7 +32,7 @@ router.get('/profile', async (req, res) => {
     const data = await getProfile(result.data.userId);
     res.json(data);
   } catch (err) {
-    console.error('GET /ratings/profile error:', err);
+    logger.error({ err }, 'GET /ratings/profile error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

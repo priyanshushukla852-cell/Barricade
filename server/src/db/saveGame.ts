@@ -1,5 +1,6 @@
 import type { PieceColor } from '@shared/types';
 import { query } from './client';
+import logger from '../logger';
 
 export async function saveGame(
   roomCode: string,
@@ -16,6 +17,6 @@ export async function saveGame(
       [roomCode, winner, redUserId, blueUserId, durationSeconds],
     );
   } catch (err) {
-    console.error('saveGame error:', err);
+    logger.error({ err }, 'saveGame error');
   }
 }

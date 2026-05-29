@@ -1,6 +1,7 @@
 import type { Server, Socket } from 'socket.io';
 import { z } from 'zod';
 import type { ServerToClientEvents, ClientToServerEvents } from '@shared/types';
+import logger from '../logger';
 import {
   getRoom,
   getRoomBySocketId,
@@ -62,7 +63,7 @@ async function finalizeGame(
       winnerChange = update.winner;
       loserChange = update.loser;
     } catch (err) {
-      console.error('applyRatings error:', err);
+      logger.error({ err }, 'applyRatings error');
     }
   }
 
@@ -77,7 +78,7 @@ async function finalizeGame(
   }
 
   if (room.red && room.blue && room.startedAt) {
-    saveGame(roomCode, winner, room.red.userId, room.blue.userId, room.startedAt).catch(console.error);
+    saveGame(roomCode, winner, room.red.userId, room.blue.userId, room.startedAt).catch((err) => logger.error({ err }, 'finalizeGame error'));
   }
 
   deleteRoom(roomCode);
@@ -121,7 +122,7 @@ export function startTurnTimer(io: AppServer, roomCode: string): void {
     const winner = r.state.currentTurn === 'red' ? 'blue' : 'red';
     r.state.winner = winner;
     r.state.phase = 'game_over';
-    finalizeGame(io, roomCode, r, winner, 'timeout').catch(console.error);
+    finalizeGame(io, roomCode, r, winner, 'timeout').catch((err) => logger.error({ err }, 'finalizeGame error'));
   }, durationMs);
 }
 
@@ -264,7 +265,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
       newState = { ...newState, winner, phase: 'game_over' as const };
       clearTurnTimer(room);
       updateState(roomCode, newState);
-      finalizeGame(io, roomCode, room, winner, 'reached_goal').catch(console.error);
+      finalizeGame(io, roomCode, room, winner, 'reached_goal').catch((err) => logger.error({ err }, 'finalizeGame error'));
     } else {
       updateState(roomCode, newState);
       clearTurnTimer(room);
@@ -309,7 +310,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
       newState = { ...newState, winner, phase: 'game_over' as const };
       clearTurnTimer(room);
       updateState(roomCode, newState);
-      finalizeGame(io, roomCode, room, winner, 'reached_goal').catch(console.error);
+      finalizeGame(io, roomCode, room, winner, 'reached_goal').catch((err) => logger.error({ err }, 'finalizeGame error'));
     } else {
       updateState(roomCode, newState);
       clearTurnTimer(room);
@@ -342,7 +343,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
     const winner = leavingColor === 'red' ? 'blue' : 'red';
 
     clearTurnTimer(room);
-    finalizeGame(io, roomCode, room, winner, 'opponent_left').catch(console.error);
+    finalizeGame(io, roomCode, room, winner, 'opponent_left').catch((err) => logger.error({ err }, 'finalizeGame error'));
   });
 
   socket.on('join_queue', async (payload) => {
@@ -406,7 +407,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
       if (!r) return;
       // The winner is whichever player is NOT the one who disconnected
       const winner = disconnecting.color === 'red' ? 'blue' : 'red';
-      finalizeGame(io, roomCode, r, winner, 'opponent_left').catch(console.error);
+      finalizeGame(io, roomCode, r, winner, 'opponent_left').catch((err) => logger.error({ err }, 'finalizeGame error'));
     }, RECONNECT_SECONDS * 1000);
 
     room.disconnectTimers.set(disconnecting.userId, timer);

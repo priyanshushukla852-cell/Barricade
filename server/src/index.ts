@@ -1,4 +1,6 @@
+import './instrument';
 import express from 'express';
+import * as Sentry from '@sentry/node';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { readFileSync } from 'fs';
@@ -8,15 +10,15 @@ import { registerSocketHandlers } from './socket/handlers';
 import { query } from './db/client';
 import lobbyRouter from './routes/lobby';
 import ratingsRouter from './routes/ratings';
+import logger from './logger';
 
-// Run migrations on every startup (all statements use IF NOT EXISTS — safe to re-run).
 async function runMigrations() {
   try {
     const sql = readFileSync(join(__dirname, '../src/db/migrate.sql'), 'utf8');
     await query(sql);
-    console.log('Migrations applied');
+    logger.info('Migrations applied');
   } catch (err) {
-    console.error('Migration error:', err);
+    logger.error({ err }, 'Migration error');
   }
 }
 runMigrations();
@@ -32,11 +34,13 @@ app.use(express.json());
 app.use('/lobby', lobbyRouter);
 app.use('/ratings', ratingsRouter);
 
+Sentry.setupExpressErrorHandler(app);
+
 io.on('connection', (socket) => {
   registerSocketHandlers(io, socket);
 });
 
 const PORT = process.env.PORT ?? 3001;
 httpServer.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  logger.info(`Server running on port ${PORT}`);
 });

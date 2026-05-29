@@ -10,7 +10,8 @@
         "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "barricade-8ae54.firebaseapp.com",
         "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "barricade-8ae54",
         "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "587302474132-evve9r6harhio41cuq7kvc368dfk8o50.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "587302474132-dhj0k33kpgpel7hgi34tn98ttoefjs6r.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "587302474132-dhj0k33kpgpel7hgi34tn98ttoefjs6r.apps.googleusercontent.com",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://6d2a8210ec278aa74d73686a082c1c86@o4511474696323072.ingest.us.sentry.io/4511474704973824"
       }
     },
     "store": {
@@ -23,7 +24,8 @@
         "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "barricade-8ae54.firebaseapp.com",
         "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "barricade-8ae54",
         "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "587302474132-evve9r6harhio41cuq7kvc368dfk8o50.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "587302474132-dhj0k33kpgpel7hgi34tn98ttoefjs6r.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "587302474132-dhj0k33kpgpel7hgi34tn98ttoefjs6r.apps.googleusercontent.com",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://6d2a8210ec278aa74d73686a082c1c86@o4511474696323072.ingest.us.sentry.io/4511474704973824"
       }
     },
     "production": {
@@ -36,7 +38,8 @@
         "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "barricade-8ae54.firebaseapp.com",
         "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "barricade-8ae54",
         "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "587302474132-evve9r6harhio41cuq7kvc368dfk8o50.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "587302474132-dhj0k33kpgpel7hgi34tn98ttoefjs6r.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "587302474132-dhj0k33kpgpel7hgi34tn98ttoefjs6r.apps.googleusercontent.com",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://6d2a8210ec278aa74d73686a082c1c86@o4511474696323072.ingest.us.sentry.io/4511474704973824"
       }
     }
   }
