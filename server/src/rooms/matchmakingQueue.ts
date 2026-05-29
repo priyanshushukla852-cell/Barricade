@@ -3,7 +3,10 @@ export type QueueEntry = {
   socketId: string;
   nickname: string;
   joinedAt: number;
+  rating: number;
 };
+
+const RATING_WINDOW = 300;
 
 const queue: QueueEntry[] = [];
 
@@ -22,10 +25,27 @@ export function dequeueBySocketId(socketId: string): void {
   if (idx !== -1) queue.splice(idx, 1);
 }
 
-// Returns the first two waiting players (FIFO) or null if fewer than 2.
+// Matches the longest-waiting player against the closest-rated opponent within
+// RATING_WINDOW. Falls back to FIFO if nobody fits the window.
 export function tryMatch(): [QueueEntry, QueueEntry] | null {
   if (queue.length < 2) return null;
-  const first = queue.shift()!;
-  const second = queue.shift()!;
-  return [first, second];
+
+  const candidate = queue[0];
+
+  let bestIdx = -1;
+  let bestDiff = Infinity;
+  for (let i = 1; i < queue.length; i++) {
+    const diff = Math.abs(queue[i].rating - candidate.rating);
+    if (diff <= RATING_WINDOW && diff < bestDiff) {
+      bestDiff = diff;
+      bestIdx = i;
+    }
+  }
+
+  // Fall back to the next FIFO entry if no one is within the rating window.
+  const matchIdx = bestIdx !== -1 ? bestIdx : 1;
+
+  queue.splice(0, 1); // remove candidate
+  const opponent = queue.splice(matchIdx - 1, 1)[0]!;
+  return [candidate, opponent];
 }

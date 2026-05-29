@@ -14,7 +14,7 @@ import type { Room } from '../rooms/roomManager';
 import { enqueue, dequeue, dequeueBySocketId, tryMatch } from '../rooms/matchmakingQueue';
 import { createInitialState, applyMove, applyWall, checkWinner } from '../game';
 import { saveGame } from '../db/saveGame';
-import { applyRatings } from '../db/ratings';
+import { applyRatings, getRating } from '../db/ratings';
 
 const PositionSchema = z.object({ row: z.number().int(), col: z.number().int() });
 const EdgeSchema = z.object({ from: PositionSchema, to: PositionSchema });
@@ -337,14 +337,15 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
     finalizeGame(io, roomCode, room, winner, 'opponent_left').catch(console.error);
   });
 
-  socket.on('join_queue', (payload) => {
+  socket.on('join_queue', async (payload) => {
     const result = QueueSchema.safeParse(payload);
     if (!result.success) {
       socket.emit('error', { message: 'Invalid join_queue payload' });
       return;
     }
     const { userId, nickname } = result.data;
-    enqueue({ userId, socketId: socket.id, nickname, joinedAt: Date.now() });
+    const { rating } = await getRating(userId).catch(() => ({ rating: 1200, gamesPlayed: 0, wins: 0, losses: 0 }));
+    enqueue({ userId, socketId: socket.id, nickname, joinedAt: Date.now(), rating });
 
     const match = tryMatch();
     if (!match) return;
