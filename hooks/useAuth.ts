@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import {
   createUserWithEmailAndPassword,
+  fetchSignInMethodsForEmail,
   getIdToken,
   GoogleAuthProvider,
   onAuthStateChanged,
@@ -75,6 +76,13 @@ export async function signInWithGoogle(): Promise<void> {
 }
 
 export async function resetPassword(email: string): Promise<void> {
+  const methods = await fetchSignInMethodsForEmail(auth, email);
+  if (methods.length === 0) {
+    throw new Error('No account found with this email.');
+  }
+  if (!methods.includes('password')) {
+    throw new Error('This account uses Google Sign-In — no password to reset.');
+  }
   await sendPasswordResetEmail(auth, email);
 }
 
