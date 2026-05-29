@@ -39,6 +39,7 @@ function firebaseErrorMessage(err: unknown): string {
 export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [resetSent, setResetSent] = useState(false);
@@ -119,15 +120,20 @@ export default function AuthScreen() {
           editable={!loading}
         />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor="#AAA"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          editable={!loading}
-        />
+        <View style={styles.passwordRow}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="Password"
+            placeholderTextColor="#AAA"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+            editable={!loading}
+          />
+          <Pressable onPress={() => setShowPassword((v) => !v)} style={styles.eyeBtn}>
+            <Text style={styles.eyeText}>{showPassword ? '🙈' : '👁️'}</Text>
+          </Pressable>
+        </View>
 
         <Pressable
           style={[styles.btn, styles.btnPrimary, loading && styles.btnDisabled]}
@@ -227,6 +233,28 @@ const styles = StyleSheet.create({
   dividerText: { fontSize: 13, color: '#999' },
   btnGoogle: { borderWidth: 1.5, borderColor: '#D0C8B8', backgroundColor: '#FFF' },
   btnGoogleText: { color: '#1A1A1A', fontSize: 16, fontWeight: '600' },
+  passwordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#D0C8B8',
+    borderRadius: 10,
+    backgroundColor: '#FFF',
+  },
+  passwordInput: {
+    flex: 1,
+    height: 50,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    color: '#1A1A1A',
+  },
+  eyeBtn: {
+    paddingHorizontal: 14,
+    height: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eyeText: { fontSize: 18 },
   forgotBtn: { alignSelf: 'flex-end', paddingVertical: 2 },
   forgotText: { fontSize: 13, color: '#888', fontWeight: '500' },
   resetSent: { fontSize: 13, color: '#22AA66', textAlign: 'center' },
