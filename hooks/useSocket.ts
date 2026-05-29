@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useRouter } from 'expo-router';
 import { socket } from '../lib/socketClient';
 import { useGameStore } from '../store/gameStore';
+import { useAuthStore } from '../store/authStore';
 import type { ClientToServerEvents, GameState, PieceColor } from '@shared/types';
 
 export function useSocket({
@@ -37,15 +38,24 @@ export function useSocket({
     function onGameOver({
       winner,
       reason,
+      ratingChange,
     }: {
       winner: PieceColor;
       reason: 'reached_goal' | 'timeout' | 'opponent_left';
+      ratingChange?: { before: number; after: number; delta: number };
     }) {
       const current = useGameStore.getState().gameState;
       if (current) setGameState({ ...current, winner, phase: 'game_over' });
+      if (ratingChange) useAuthStore.getState().setRating(ratingChange.after);
       router.replace({
         pathname: '/(game)/result',
-        params: { winner, reason },
+        params: {
+          winner,
+          reason,
+          ratingBefore: ratingChange ? String(ratingChange.before) : undefined,
+          ratingAfter: ratingChange ? String(ratingChange.after) : undefined,
+          ratingDelta: ratingChange ? String(ratingChange.delta) : undefined,
+        },
       });
     }
 

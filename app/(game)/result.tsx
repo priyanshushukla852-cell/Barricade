@@ -9,12 +9,22 @@ const PIECE_COLORS: Record<PieceColor, string> = {
 };
 
 export default function ResultScreen() {
-  const { winner, reason } = useLocalSearchParams<{ winner?: string; reason?: string }>();
+  const { winner, reason, ratingBefore, ratingAfter, ratingDelta } = useLocalSearchParams<{
+    winner?: string;
+    reason?: string;
+    ratingBefore?: string;
+    ratingAfter?: string;
+    ratingDelta?: string;
+  }>();
   const playerColor = useGameStore((s) => s.playerColor);
 
   const isValidColor = winner === 'red' || winner === 'blue';
   const color = isValidColor ? PIECE_COLORS[winner as PieceColor] : '#1A1A1A';
   const label = winner ? winner.toUpperCase() : '?';
+
+  const before = ratingBefore ? parseInt(ratingBefore, 10) : null;
+  const after = ratingAfter ? parseInt(ratingAfter, 10) : null;
+  const delta = ratingDelta ? parseInt(ratingDelta, 10) : null;
 
   function getSubtitle() {
     if (!reason) return '';
@@ -37,6 +47,17 @@ export default function ResultScreen() {
       <View style={styles.content}>
         <Text style={[styles.winner, { color }]}>{label} WINS!</Text>
         {subtitle !== '' && <Text style={styles.subtitle}>{subtitle}</Text>}
+
+        {before !== null && after !== null && delta !== null && (
+          <View style={styles.ratingRow}>
+            <Text style={styles.ratingText}>{before}</Text>
+            <Text style={styles.ratingArrow}> → </Text>
+            <Text style={styles.ratingText}>{after}</Text>
+            <Text style={[styles.ratingDelta, delta >= 0 ? styles.ratingGain : styles.ratingLoss]}>
+              {delta >= 0 ? ` (+${delta})` : ` (${delta})`}
+            </Text>
+          </View>
+        )}
 
         <View style={styles.actions}>
           <Pressable
@@ -79,6 +100,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
   },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  ratingText: { fontSize: 20, fontWeight: '700', color: '#1A1A1A' },
+  ratingArrow: { fontSize: 18, color: '#999' },
+  ratingDelta: { fontSize: 18, fontWeight: '700' },
+  ratingGain: { color: '#22AA66' },
+  ratingLoss: { color: '#EE2222' },
   actions: {
     width: '100%',
     gap: 12,

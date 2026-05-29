@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -32,9 +32,19 @@ type Sheet = 'local' | 'computer' | null;
 export default function HomeScreen() {
   const userId = useAuthStore((s) => s.userId);
   const nickname = useAuthStore((s) => s.nickname);
+  const rating = useAuthStore((s) => s.rating);
+  const setRating = useAuthStore((s) => s.setRating);
   const setGameState = useGameStore((s) => s.setGameState);
   const setPlayerColor = useGameStore((s) => s.setPlayerColor);
   const clearSelection = useGameStore((s) => s.clearSelection);
+
+  useEffect(() => {
+    if (!userId) return;
+    fetch(`${SERVER_URL}/ratings/me?userId=${encodeURIComponent(userId)}`)
+      .then((r) => r.json())
+      .then((data: { rating?: number }) => { if (data.rating) setRating(data.rating); })
+      .catch(() => {}); // silent — rating is just cosmetic
+  }, [userId, setRating]);
 
   // Sheet state
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -120,7 +130,14 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.header}>
-        <Text style={styles.title}>BARRICADE</Text>
+        <View>
+          <Text style={styles.title}>BARRICADE</Text>
+          {nickname && (
+            <Text style={styles.subtitle}>
+              {nickname}{rating !== null ? `  ·  ★ ${rating}` : ''}
+            </Text>
+          )}
+        </View>
         <Pressable style={styles.signOutBtn} onPress={signOut}>
           <Text style={styles.signOutText}>Sign Out</Text>
         </Pressable>
@@ -293,6 +310,7 @@ const styles = StyleSheet.create({
     letterSpacing: 3,
     color: '#1A1A1A',
   },
+  subtitle: { fontSize: 13, color: '#888', fontWeight: '500', marginTop: 2 },
   signOutBtn: { paddingVertical: 6, paddingHorizontal: 12 },
   signOutText: { fontSize: 14, color: '#888', fontWeight: '600' },
   content: {

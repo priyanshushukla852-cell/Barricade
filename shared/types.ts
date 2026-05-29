@@ -50,6 +50,7 @@ export interface ServerToClientEvents {
   game_over: (payload: {
     winner: PieceColor;
     reason: 'reached_goal' | 'timeout' | 'opponent_left';
+    ratingChange?: { before: number; after: number; delta: number };
   }) => void;
   opponent_left: (payload: { reconnecting: boolean; secondsLeft?: number }) => void;
   matched: (payload: MatchedPayload) => void;

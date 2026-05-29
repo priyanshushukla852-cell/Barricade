@@ -13,6 +13,7 @@ import type { Room } from '../rooms/roomManager';
 import { enqueue, dequeue, dequeueBySocketId, tryMatch } from '../rooms/matchmakingQueue';
 import { createInitialState, applyMove, applyWall, checkWinner } from '../game';
 import { saveGame } from '../db/saveGame';
+import { applyRatings } from '../db/ratings';
 
 const PositionSchema = z.object({ row: z.number().int(), col: z.number().int() });
 const EdgeSchema = z.object({ from: PositionSchema, to: PositionSchema });
@@ -40,11 +41,44 @@ type AppServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
 const RECONNECT_SECONDS = 60;
 
-function persistGame(roomCode: string, room: Room, winner: import('@shared/types').PieceColor): void {
-  if (!room.red || !room.blue || !room.startedAt) return;
-  saveGame(roomCode, winner, room.red.userId, room.blue.userId, room.startedAt).catch(
-    console.error,
-  );
+async function finalizeGame(
+  io: AppServer,
+  roomCode: string,
+  room: Room,
+  winner: import('@shared/types').PieceColor,
+  reason: 'reached_goal' | 'timeout' | 'opponent_left',
+): Promise<void> {
+  const winnerPlayer = winner === 'red' ? room.red : room.blue;
+  const loserPlayer = winner === 'red' ? room.blue : room.red;
+
+  let winnerChange: { before: number; after: number; delta: number } | undefined;
+  let loserChange: { before: number; after: number; delta: number } | undefined;
+
+  if (winnerPlayer && loserPlayer) {
+    try {
+      const update = await applyRatings(roomCode, winner, winnerPlayer.userId, loserPlayer.userId, reason);
+      winnerChange = update.winner;
+      loserChange = update.loser;
+    } catch (err) {
+      console.error('applyRatings error:', err);
+    }
+  }
+
+  // Emit to each player individually so each gets their own ratingChange
+  if (winnerPlayer && winnerPlayer.socketId !== 'pending') {
+    const sock = io.sockets.sockets.get(winnerPlayer.socketId);
+    sock?.emit('game_over', { winner, reason, ratingChange: winnerChange });
+  }
+  if (loserPlayer && loserPlayer.socketId !== 'pending') {
+    const sock = io.sockets.sockets.get(loserPlayer.socketId);
+    sock?.emit('game_over', { winner, reason, ratingChange: loserChange });
+  }
+
+  if (room.red && room.blue && room.startedAt) {
+    saveGame(roomCode, winner, room.red.userId, room.blue.userId, room.startedAt).catch(console.error);
+  }
+
+  deleteRoom(roomCode);
 }
 
 export function clearTurnTimer(room: Room): void {
@@ -85,9 +119,7 @@ export function startTurnTimer(io: AppServer, roomCode: string): void {
     const winner = r.state.currentTurn === 'red' ? 'blue' : 'red';
     r.state.winner = winner;
     r.state.phase = 'game_over';
-    io.to(roomCode).emit('game_over', { winner, reason: 'timeout' });
-    persistGame(roomCode, room, winner);
-    deleteRoom(roomCode);
+    finalizeGame(io, roomCode, r, winner, 'timeout').catch(console.error);
   }, durationMs);
 }
 
@@ -217,9 +249,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
       newState = { ...newState, winner, phase: 'game_over' as const };
       clearTurnTimer(room);
       updateState(roomCode, newState);
-      io.to(roomCode).emit('game_over', { winner, reason: 'reached_goal' });
-      persistGame(roomCode, room, winner);
-      deleteRoom(roomCode);
+      finalizeGame(io, roomCode, room, winner, 'reached_goal').catch(console.error);
     } else {
       updateState(roomCode, newState);
       clearTurnTimer(room);
@@ -264,9 +294,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
       newState = { ...newState, winner, phase: 'game_over' as const };
       clearTurnTimer(room);
       updateState(roomCode, newState);
-      io.to(roomCode).emit('game_over', { winner, reason: 'reached_goal' });
-      persistGame(roomCode, room, winner);
-      deleteRoom(roomCode);
+      finalizeGame(io, roomCode, room, winner, 'reached_goal').catch(console.error);
     } else {
       updateState(roomCode, newState);
       clearTurnTimer(room);
@@ -291,9 +319,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
     const winner = leavingColor === 'red' ? 'blue' : 'red';
 
     clearTurnTimer(room);
-    io.to(roomCode).emit('game_over', { winner, reason: 'opponent_left' });
-    persistGame(roomCode, room, winner);
-    deleteRoom(roomCode);
+    finalizeGame(io, roomCode, room, winner, 'opponent_left').catch(console.error);
   });
 
   socket.on('join_queue', (payload) => {
@@ -356,9 +382,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
       if (!r) return;
       // The winner is whichever player is NOT the one who disconnected
       const winner = disconnecting.color === 'red' ? 'blue' : 'red';
-      io.to(roomCode).emit('game_over', { winner, reason: 'opponent_left' });
-      persistGame(roomCode, room, winner);
-      deleteRoom(roomCode);
+      finalizeGame(io, roomCode, r, winner, 'opponent_left').catch(console.error);
     }, RECONNECT_SECONDS * 1000);
 
     room.disconnectTimers.set(disconnecting.userId, timer);
