@@ -4,6 +4,7 @@ import {
   getIdToken,
   GoogleAuthProvider,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInWithCredential,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -62,6 +63,10 @@ export async function signInWithGoogle(): Promise<void> {
   const credential = GoogleAuthProvider.credential(idToken);
   const userCredential = await signInWithCredential(auth, credential);
   await applyUser(userCredential.user);
+}
+
+export async function resetPassword(email: string): Promise<void> {
+  await sendPasswordResetEmail(auth, email);
 }
 
 export async function signOut(): Promise<void> {

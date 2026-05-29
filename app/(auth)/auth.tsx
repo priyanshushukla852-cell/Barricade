@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import { signInWithEmail, signInWithGoogle, signUpWithEmail } from '../../hooks/useAuth';
+import { resetPassword, signInWithEmail, signInWithGoogle, signUpWithEmail } from '../../hooks/useAuth';
 
 function firebaseErrorMessage(err: unknown): string {
   if (err && typeof err === 'object' && 'code' in err) {
@@ -41,6 +41,7 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [resetSent, setResetSent] = useState(false);
 
   async function handleSignIn() {
     setError('');
@@ -61,6 +62,23 @@ export default function AuthScreen() {
     try {
       await signUpWithEmail(email.trim(), password);
       router.replace('/(game)/home');
+    } catch (err) {
+      setError(firebaseErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleResetPassword() {
+    if (!email.trim()) {
+      setError('Enter your email above first.');
+      return;
+    }
+    setError('');
+    setLoading(true);
+    try {
+      await resetPassword(email.trim());
+      setResetSent(true);
     } catch (err) {
       setError(firebaseErrorMessage(err));
     } finally {
@@ -130,6 +148,13 @@ export default function AuthScreen() {
         >
           <Text style={styles.btnSecondaryText}>Create Account</Text>
         </Pressable>
+
+        <Pressable onPress={handleResetPassword} disabled={loading} style={styles.forgotBtn}>
+          <Text style={styles.forgotText}>Forgot password?</Text>
+        </Pressable>
+        {resetSent && (
+          <Text style={styles.resetSent}>Password reset email sent — check your inbox.</Text>
+        )}
 
         <View style={styles.divider}>
           <View style={styles.dividerLine} />
@@ -202,6 +227,9 @@ const styles = StyleSheet.create({
   dividerText: { fontSize: 13, color: '#999' },
   btnGoogle: { borderWidth: 1.5, borderColor: '#D0C8B8', backgroundColor: '#FFF' },
   btnGoogleText: { color: '#1A1A1A', fontSize: 16, fontWeight: '600' },
+  forgotBtn: { alignSelf: 'flex-end', paddingVertical: 2 },
+  forgotText: { fontSize: 13, color: '#888', fontWeight: '500' },
+  resetSent: { fontSize: 13, color: '#22AA66', textAlign: 'center' },
   error: {
     color: '#EE2222',
     fontSize: 13,
