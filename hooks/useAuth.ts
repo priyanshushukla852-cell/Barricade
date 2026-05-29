@@ -8,6 +8,7 @@ import {
   signInWithCredential,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
+  updateProfile,
   type User,
 } from 'firebase/auth';
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
@@ -49,7 +50,15 @@ export async function signInWithEmail(email: string, password: string): Promise<
 
 export async function signUpWithEmail(email: string, password: string): Promise<void> {
   const result = await createUserWithEmailAndPassword(auth, email, password);
+  const defaultName = email.split('@')[0];
+  await updateProfile(result.user, { displayName: defaultName });
   await applyUser(result.user);
+}
+
+export async function updateNickname(name: string): Promise<void> {
+  if (!auth.currentUser) throw new Error('Not signed in');
+  await updateProfile(auth.currentUser, { displayName: name });
+  useAuthStore.getState().setNickname(name);
 }
 
 export async function signInWithGoogle(): Promise<void> {

@@ -8,6 +8,7 @@ import {
   updateState,
   deleteRoom,
   createMatchedRoom,
+  setRated,
 } from '../rooms/roomManager';
 import type { Room } from '../rooms/roomManager';
 import { enqueue, dequeue, dequeueBySocketId, tryMatch } from '../rooms/matchmakingQueue';
@@ -35,6 +36,7 @@ const WallSchema = z.object({ roomCode: z.string(), wall: EdgeSchema });
 const LeaveSchema = z.object({ roomCode: z.string() });
 const QueueSchema = z.object({ userId: z.string(), nickname: z.string() });
 const LeaveQueueSchema = z.object({ userId: z.string() });
+const UpdateLobbySchema = z.object({ roomCode: z.string(), rated: z.boolean() });
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -54,7 +56,7 @@ async function finalizeGame(
   let winnerChange: { before: number; after: number; delta: number } | undefined;
   let loserChange: { before: number; after: number; delta: number } | undefined;
 
-  if (winnerPlayer && loserPlayer) {
+  if (winnerPlayer && loserPlayer && room.rated) {
     try {
       const update = await applyRatings(roomCode, winner, winnerPlayer.userId, loserPlayer.userId, reason);
       winnerChange = update.winner;
@@ -163,6 +165,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
           const blueReady = room.blue !== null && room.blue.socketId !== 'pending';
           if (redReady && blueReady) {
             io.to(roomCode).emit('lobby_ready');
+            io.to(roomCode).emit('lobby_info', { rated: room.rated });
             // Auto-start for random-matched rooms (no host needed).
             if (room.autoStart) {
               const state = createInitialState(3);
@@ -189,7 +192,18 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
     const updated = getRoom(roomCode);
     if (updated && updated.red !== null && updated.blue !== null) {
       io.to(roomCode).emit('lobby_ready');
+      io.to(roomCode).emit('lobby_info', { rated: updated.rated });
     }
+  });
+
+  socket.on('update_lobby', (payload) => {
+    const result = UpdateLobbySchema.safeParse(payload);
+    if (!result.success) return;
+    const { roomCode, rated } = result.data;
+    const room = getRoom(roomCode);
+    if (!room || room.red?.socketId !== socket.id) return; // only host (red) may change this
+    setRated(roomCode, rated);
+    io.to(roomCode).emit('lobby_info', { rated });
   });
 
   socket.on('start_game', (payload) => {

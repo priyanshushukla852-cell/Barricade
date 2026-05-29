@@ -14,6 +14,7 @@ export type Room = {
   blue: RoomPlayer | null;
   startedAt: Date | null;
   autoStart: boolean;
+  rated: boolean;
   disconnectTimers: Map<string, NodeJS.Timeout>;
   tickInterval: NodeJS.Timeout | null;
   turnTimer: NodeJS.Timeout | null;
@@ -44,6 +45,7 @@ export function createRoom(socketId: string, userId: string, nickname: string): 
     blue: null,
     startedAt: null,
     autoStart: false,
+    rated: true,
     disconnectTimers: new Map(),
     tickInterval: null,
     turnTimer: null,
@@ -63,6 +65,7 @@ export function createMatchedRoom(
     blue: { socketId: 'pending', userId: blue.userId, nickname: blue.nickname, color: 'blue' },
     startedAt: null,
     autoStart: true,
+    rated: true,
     disconnectTimers: new Map(),
     tickInterval: null,
     turnTimer: null,
@@ -107,6 +110,11 @@ export function removePlayer(roomCode: string, socketId: string): void {
   if (!room) return;
   if (room.red?.socketId === socketId) room.red = null;
   else if (room.blue?.socketId === socketId) room.blue = null;
+}
+
+export function setRated(roomCode: string, rated: boolean): void {
+  const room = rooms.get(roomCode);
+  if (room) room.rated = rated;
 }
 
 export function deleteRoom(roomCode: string): void {

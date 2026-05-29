@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -6,10 +6,12 @@ import {
   SafeAreaView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
+import { updateNickname } from '../../hooks/useAuth';
 
 const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL ?? 'http://localhost:3001';
 
@@ -48,6 +50,11 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState(nickname ?? '');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -62,6 +69,31 @@ export default function ProfileScreen() {
         setLoading(false);
       });
   }, [userId]);
+
+  async function handleSave() {
+    const trimmed = editValue.trim();
+    if (!trimmed || trimmed.length > 20) {
+      setSaveError('Name must be 1–20 characters.');
+      return;
+    }
+    setSaveError('');
+    setSaving(true);
+    try {
+      await updateNickname(trimmed);
+      setEditing(false);
+    } catch {
+      setSaveError('Failed to save. Try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleStartEdit() {
+    setEditValue(nickname ?? '');
+    setSaveError('');
+    setEditing(true);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -95,10 +127,45 @@ export default function ProfileScreen() {
               <View style={styles.identityCard}>
                 <View style={styles.avatarCircle}>
                   <Text style={styles.avatarText}>
-                    {nickname ? nickname.charAt(0).toUpperCase() : '?'}
+                    {(editing ? editValue : nickname)?.charAt(0).toUpperCase() ?? '?'}
                   </Text>
                 </View>
-                <Text style={styles.nickname}>{nickname ?? 'Player'}</Text>
+
+                {editing ? (
+                  <View style={styles.editRow}>
+                    <TextInput
+                      ref={inputRef}
+                      style={styles.nicknameInput}
+                      value={editValue}
+                      onChangeText={setEditValue}
+                      maxLength={20}
+                      autoCorrect={false}
+                      autoCapitalize="none"
+                      returnKeyType="done"
+                      onSubmitEditing={handleSave}
+                    />
+                    <Pressable
+                      style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
+                      onPress={handleSave}
+                      disabled={saving}
+                    >
+                      {saving
+                        ? <ActivityIndicator size="small" color="#FFF" />
+                        : <Text style={styles.saveBtnText}>Save</Text>
+                      }
+                    </Pressable>
+                    <Pressable style={styles.cancelEditBtn} onPress={() => setEditing(false)}>
+                      <Text style={styles.cancelEditText}>Cancel</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable style={styles.nicknameRow} onPress={handleStartEdit}>
+                    <Text style={styles.nickname}>{nickname ?? 'Player'}</Text>
+                    <Text style={styles.editIcon}>✏️</Text>
+                  </Pressable>
+                )}
+
+                {saveError !== '' && <Text style={styles.saveError}>{saveError}</Text>}
                 <Text style={styles.ratingBig}>★ {profile.rating}</Text>
               </View>
 
@@ -182,7 +249,34 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarText: { fontSize: 32, fontWeight: '800', color: '#FFF' },
+  nicknameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   nickname: { fontSize: 22, fontWeight: '800', color: '#1A1A1A', letterSpacing: 0.5 },
+  editIcon: { fontSize: 16 },
+  editRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16 },
+  nicknameInput: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    borderBottomWidth: 2,
+    borderBottomColor: '#4A3728',
+    paddingVertical: 4,
+    minWidth: 120,
+    textAlign: 'center',
+  },
+  saveBtn: {
+    backgroundColor: '#4A3728',
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    minWidth: 52,
+    alignItems: 'center',
+  },
+  saveBtnDisabled: { opacity: 0.5 },
+  saveBtnText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
+  cancelEditBtn: { paddingHorizontal: 8 },
+  cancelEditText: { color: '#999', fontSize: 14, fontWeight: '600' },
+  saveError: { color: '#EE2222', fontSize: 12, marginTop: -8 },
   ratingBig: { fontSize: 18, fontWeight: '700', color: '#888' },
 
   statsRow: {

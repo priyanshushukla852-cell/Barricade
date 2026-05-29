@@ -119,7 +119,7 @@ export default function HomeScreen() {
       setGameState(null);
       setPlayerColor('blue');
       clearSelection();
-      router.push({ pathname: '/(game)/game', params: { mode: 'online', roomCode: code } });
+      router.push({ pathname: '/(game)/lobby', params: { roomCode: code } });
     } catch (err) {
       setJoinError(err instanceof Error ? err.message : 'Failed to join room');
     } finally {

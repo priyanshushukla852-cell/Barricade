@@ -29,6 +29,7 @@ export type MovePayload = { roomCode: string; direction: Direction };
 export type WallPayload = { roomCode: string; wall: Edge };
 export type JoinPayload = { roomCode: string; userId: string; nickname: string };
 export type StartPayload = { roomCode: string; timerConfig: TimerOption };
+export type UpdateLobbyPayload = { roomCode: string; rated: boolean };
 export type QueuePayload = { userId: string; nickname: string };
 export type LeaveQueuePayload = { userId: string };
 export type MatchedPayload = { roomCode: string; playerColor: PieceColor };
@@ -41,10 +42,12 @@ export interface ClientToServerEvents {
   leave_game: (payload: { roomCode: string }) => void;
   join_queue: (payload: QueuePayload) => void;
   leave_queue: (payload: LeaveQueuePayload) => void;
+  update_lobby: (payload: UpdateLobbyPayload) => void;
 }
 
 export interface ServerToClientEvents {
   lobby_ready: () => void;
+  lobby_info: (payload: { rated: boolean }) => void;
   game_state: (state: GameState) => void;
   timer_tick: (payload: { redTimeRemaining: number; blueTimeRemaining: number }) => void;
   game_over: (payload: {
