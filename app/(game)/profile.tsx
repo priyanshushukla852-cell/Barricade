@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -57,9 +57,15 @@ export default function ProfileScreen() {
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
     fetch(`${SERVER_URL}/ratings/profile?userId=${encodeURIComponent(userId)}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error('Server error');
+        return r.json();
+      })
       .then((data: ProfileData) => {
         setProfile(data);
         setLoading(false);
@@ -95,8 +101,11 @@ export default function ProfileScreen() {
     setTimeout(() => inputRef.current?.focus(), 50);
   }
 
+  const history = profile?.history ?? [];
+
   return (
     <SafeAreaView style={styles.screen}>
+      {/* Header */}
       <View style={styles.header}>
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
           <Text style={styles.backText}>← Back</Text>
@@ -117,103 +126,98 @@ export default function ProfileScreen() {
         </View>
       )}
 
-      {!loading && profile !== null && (
-        <FlatList
-          data={profile.history}
-          keyExtractor={(_, i) => String(i)}
-          ListHeaderComponent={
-            <View>
-              {/* Identity */}
-              <View style={styles.identityCard}>
-                <View style={styles.avatarCircle}>
-                  <Text style={styles.avatarText}>
-                    {(editing ? editValue : nickname)?.charAt(0).toUpperCase() ?? '?'}
-                  </Text>
-                </View>
+      {!loading && error === '' && (
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Identity */}
+          <View style={styles.identityCard}>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarText}>
+                {(nickname ?? '').charAt(0).toUpperCase() || '?'}
+              </Text>
+            </View>
 
-                {editing ? (
-                  <View style={styles.editRow}>
-                    <TextInput
-                      ref={inputRef}
-                      style={styles.nicknameInput}
-                      value={editValue}
-                      onChangeText={setEditValue}
-                      maxLength={20}
-                      autoCorrect={false}
-                      autoCapitalize="none"
-                      returnKeyType="done"
-                      onSubmitEditing={handleSave}
-                    />
-                    <Pressable
-                      style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
-                      onPress={handleSave}
-                      disabled={saving}
-                    >
-                      {saving
-                        ? <ActivityIndicator size="small" color="#FFF" />
-                        : <Text style={styles.saveBtnText}>Save</Text>
-                      }
-                    </Pressable>
-                    <Pressable style={styles.cancelEditBtn} onPress={() => setEditing(false)}>
-                      <Text style={styles.cancelEditText}>Cancel</Text>
-                    </Pressable>
+            {editing ? (
+              <View style={styles.editRow}>
+                <TextInput
+                  ref={inputRef}
+                  style={styles.nicknameInput}
+                  value={editValue}
+                  onChangeText={setEditValue}
+                  maxLength={20}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  returnKeyType="done"
+                  onSubmitEditing={handleSave}
+                />
+                <Pressable
+                  style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
+                  onPress={handleSave}
+                  disabled={saving}
+                >
+                  {saving
+                    ? <ActivityIndicator size="small" color="#FFF" />
+                    : <Text style={styles.saveBtnText}>Save</Text>
+                  }
+                </Pressable>
+                <Pressable style={styles.cancelEditBtn} onPress={() => setEditing(false)}>
+                  <Text style={styles.cancelEditText}>Cancel</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable style={styles.nicknameRow} onPress={handleStartEdit}>
+                <Text style={styles.nickname}>{nickname ?? 'Player'}</Text>
+                <Text style={styles.editIcon}>✏️</Text>
+              </Pressable>
+            )}
+
+            {saveError !== '' && <Text style={styles.saveError}>{saveError}</Text>}
+            <Text style={styles.ratingBig}>★ {profile?.rating ?? 1200}</Text>
+          </View>
+
+          {/* Stats row */}
+          <View style={styles.statsRow}>
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>{profile?.gamesPlayed ?? 0}</Text>
+              <Text style={styles.statLabel}>Games</Text>
+            </View>
+            <View style={[styles.statBox, styles.statBorder]}>
+              <Text style={[styles.statValue, styles.statWin]}>{profile?.wins ?? 0}</Text>
+              <Text style={styles.statLabel}>Wins</Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={[styles.statValue, styles.statLoss]}>{profile?.losses ?? 0}</Text>
+              <Text style={styles.statLabel}>Losses</Text>
+            </View>
+          </View>
+
+          {/* History */}
+          {history.length > 0 ? (
+            <>
+              <Text style={styles.historyHeading}>Recent Games</Text>
+              {history.map((item, i) => (
+                <View key={i} style={styles.historyRow}>
+                  <View style={[styles.outcomeBadge, item.outcome === 'win' ? styles.badgeWin : styles.badgeLoss]}>
+                    <Text style={styles.badgeText}>{item.outcome === 'win' ? 'W' : 'L'}</Text>
                   </View>
-                ) : (
-                  <Pressable style={styles.nicknameRow} onPress={handleStartEdit}>
-                    <Text style={styles.nickname}>{nickname ?? 'Player'}</Text>
-                    <Text style={styles.editIcon}>✏️</Text>
-                  </Pressable>
-                )}
-
-                {saveError !== '' && <Text style={styles.saveError}>{saveError}</Text>}
-                <Text style={styles.ratingBig}>★ {profile.rating}</Text>
-              </View>
-
-              {/* Stats row */}
-              <View style={styles.statsRow}>
-                <View style={styles.statBox}>
-                  <Text style={styles.statValue}>{profile.gamesPlayed}</Text>
-                  <Text style={styles.statLabel}>Games</Text>
+                  <View style={styles.historyInfo}>
+                    <Text style={styles.historyReason}>{reasonLabel(item.reason)}</Text>
+                    <Text style={styles.historyDate}>{formatDate(item.playedAt)}</Text>
+                  </View>
+                  <View style={styles.historyRating}>
+                    <Text style={styles.historyRatingText}>
+                      {item.ratingBefore} → {item.ratingAfter}
+                    </Text>
+                    <Text style={[styles.historyDelta, item.delta >= 0 ? styles.deltaGain : styles.deltaLoss]}>
+                      {item.delta >= 0 ? `+${item.delta}` : String(item.delta)}
+                    </Text>
+                  </View>
                 </View>
-                <View style={[styles.statBox, styles.statBorder]}>
-                  <Text style={[styles.statValue, styles.statWin]}>{profile.wins}</Text>
-                  <Text style={styles.statLabel}>Wins</Text>
-                </View>
-                <View style={styles.statBox}>
-                  <Text style={[styles.statValue, styles.statLoss]}>{profile.losses}</Text>
-                  <Text style={styles.statLabel}>Losses</Text>
-                </View>
-              </View>
-
-              {profile.history.length > 0 && (
-                <Text style={styles.historyHeading}>Recent Games</Text>
-              )}
-            </View>
-          }
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>No games played yet.</Text>
-          }
-          renderItem={({ item }) => (
-            <View style={styles.historyRow}>
-              <View style={[styles.outcomeBadge, item.outcome === 'win' ? styles.badgeWin : styles.badgeLoss]}>
-                <Text style={styles.badgeText}>{item.outcome === 'win' ? 'W' : 'L'}</Text>
-              </View>
-              <View style={styles.historyInfo}>
-                <Text style={styles.historyReason}>{reasonLabel(item.reason)}</Text>
-                <Text style={styles.historyDate}>{formatDate(item.playedAt)}</Text>
-              </View>
-              <View style={styles.historyRating}>
-                <Text style={styles.historyRatingText}>
-                  {item.ratingBefore} → {item.ratingAfter}
-                </Text>
-                <Text style={[styles.historyDelta, item.delta >= 0 ? styles.deltaGain : styles.deltaLoss]}>
-                  {item.delta >= 0 ? `+${item.delta}` : String(item.delta)}
-                </Text>
-              </View>
-            </View>
+              ))}
+            </>
+          ) : (
+            !loading && <Text style={styles.emptyText}>No games played yet.</Text>
           )}
-          contentContainerStyle={styles.listContent}
-        />
+        </ScrollView>
       )}
     </SafeAreaView>
   );
@@ -234,6 +238,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 18, fontWeight: '800', color: '#1A1A1A', letterSpacing: 0.5 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   errorText: { color: '#EE2222', fontSize: 15 },
+
+  scrollContent: { paddingBottom: 48 },
 
   identityCard: {
     alignItems: 'center',
@@ -305,7 +311,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 24,
     marginBottom: 10,
   },
-  listContent: { paddingBottom: 40 },
 
   historyRow: {
     flexDirection: 'row',
