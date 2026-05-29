@@ -12,6 +12,30 @@ import {
 import { router } from 'expo-router';
 import { signInWithEmail, signInWithGoogle, signUpWithEmail } from '../../hooks/useAuth';
 
+function firebaseErrorMessage(err: unknown): string {
+  if (err && typeof err === 'object' && 'code' in err) {
+    switch ((err as { code: string }).code) {
+      case 'auth/invalid-credential':
+      case 'auth/wrong-password':
+      case 'auth/user-not-found':
+        return 'Incorrect email or password.';
+      case 'auth/email-already-in-use':
+        return 'An account with this email already exists.';
+      case 'auth/weak-password':
+        return 'Password must be at least 6 characters.';
+      case 'auth/invalid-email':
+        return 'Please enter a valid email address.';
+      case 'auth/operation-not-allowed':
+        return 'Email/password sign-in is not enabled. Please contact support.';
+      case 'auth/network-request-failed':
+        return 'Network error. Check your connection and try again.';
+      case 'auth/too-many-requests':
+        return 'Too many attempts. Try again later or reset your password.';
+    }
+  }
+  return err instanceof Error ? err.message : 'Something went wrong.';
+}
+
 export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,7 +49,7 @@ export default function AuthScreen() {
       await signInWithEmail(email.trim(), password);
       router.replace('/(game)/home');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign-in failed');
+      setError(firebaseErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -38,7 +62,7 @@ export default function AuthScreen() {
       await signUpWithEmail(email.trim(), password);
       router.replace('/(game)/home');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Account creation failed');
+      setError(firebaseErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -51,7 +75,7 @@ export default function AuthScreen() {
       await signInWithGoogle();
       router.replace('/(game)/home');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Google sign-in failed');
+      setError(firebaseErrorMessage(err));
     } finally {
       setLoading(false);
     }
