@@ -15,6 +15,7 @@ export type Room = {
   startedAt: Date | null;
   autoStart: boolean;
   rated: boolean;
+  hostColor: PieceColor;
   disconnectTimers: Map<string, NodeJS.Timeout>;
   tickInterval: NodeJS.Timeout | null;
   turnTimer: NodeJS.Timeout | null;
@@ -36,21 +37,28 @@ export function generateRoomCode(): string {
   return code;
 }
 
-export function createRoom(socketId: string, userId: string, nickname: string): string {
+export function createRoom(
+  socketId: string,
+  userId: string,
+  nickname: string,
+): { roomCode: string; hostColor: PieceColor } {
   const roomCode = generateRoomCode();
+  const hostColor: PieceColor = Math.random() < 0.5 ? 'red' : 'blue';
+  const player: RoomPlayer = { socketId, userId, nickname, color: hostColor };
   rooms.set(roomCode, {
     roomCode,
     state: null,
-    red: { socketId, userId, nickname, color: 'red' },
-    blue: null,
+    red: hostColor === 'red' ? player : null,
+    blue: hostColor === 'blue' ? player : null,
     startedAt: null,
     autoStart: false,
     rated: true,
+    hostColor,
     disconnectTimers: new Map(),
     tickInterval: null,
     turnTimer: null,
   });
-  return roomCode;
+  return { roomCode, hostColor };
 }
 
 export function createMatchedRoom(
@@ -66,6 +74,7 @@ export function createMatchedRoom(
     startedAt: null,
     autoStart: true,
     rated: true,
+    hostColor: 'red', // matchmaking has no concept of host — value unused
     disconnectTimers: new Map(),
     tickInterval: null,
     turnTimer: null,
@@ -78,11 +87,13 @@ export function joinRoom(
   socketId: string,
   userId: string,
   nickname: string,
-): void {
+): PieceColor {
   const room = rooms.get(roomCode);
   if (!room) throw new Error('Room not found');
-  if (room.blue !== null) throw new Error('Room is full');
-  room.blue = { socketId, userId, nickname, color: 'blue' };
+  if (room.red !== null && room.blue !== null) throw new Error('Room is full');
+  const color: PieceColor = room.red === null ? 'red' : 'blue';
+  room[color] = { socketId, userId, nickname, color };
+  return color;
 }
 
 export function getRoom(roomCode: string): Room | null {

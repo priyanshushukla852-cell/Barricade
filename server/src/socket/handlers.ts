@@ -201,7 +201,8 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
     if (!result.success) return;
     const { roomCode, rated } = result.data;
     const room = getRoom(roomCode);
-    if (!room || room.red?.socketId !== socket.id) return; // only host (red) may change this
+    const hostPlayer = room ? (room.hostColor === 'red' ? room.red : room.blue) : null;
+    if (!room || hostPlayer?.socketId !== socket.id) return; // only host may change this
     setRated(roomCode, rated);
     io.to(roomCode).emit('lobby_info', { rated });
   });

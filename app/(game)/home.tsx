@@ -87,12 +87,12 @@ export default function HomeScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, nickname }),
       });
-      const data = (await res.json()) as { roomCode?: string; error?: string };
+      const data = (await res.json()) as { roomCode?: string; playerColor?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? 'Failed to create room');
       setGameState(null);
-      setPlayerColor('red');
+      setPlayerColor((data.playerColor as PieceColor) ?? 'red');
       clearSelection();
-      router.push({ pathname: '/(game)/lobby', params: { roomCode: data.roomCode } });
+      router.push({ pathname: '/(game)/lobby', params: { roomCode: data.roomCode, isHost: 'true' } });
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'Failed to create room');
     } finally {
@@ -114,12 +114,12 @@ export default function HomeScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, nickname, roomCode: code }),
       });
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as { playerColor?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? 'Failed to join room');
       setGameState(null);
-      setPlayerColor('blue');
+      setPlayerColor((data.playerColor as PieceColor) ?? 'blue');
       clearSelection();
-      router.push({ pathname: '/(game)/lobby', params: { roomCode: code } });
+      router.push({ pathname: '/(game)/lobby', params: { roomCode: code, isHost: 'false' } });
     } catch (err) {
       setJoinError(err instanceof Error ? err.message : 'Failed to join room');
     } finally {

@@ -12,22 +12,22 @@ import * as Clipboard from 'expo-clipboard';
 import { socket } from '../../lib/socketClient';
 import { emit } from '../../hooks/useSocket';
 import { useAuthStore } from '../../store/authStore';
-import { useGameStore } from '../../store/gameStore';
 import type { GameState, TimerOption } from '@shared/types';
 
 const TIMER_OPTIONS: TimerOption[] = [1, 2, 3, 5];
 
 export default function LobbyScreen() {
-  const { roomCode, autoStart } = useLocalSearchParams<{ roomCode?: string; autoStart?: string }>();
+  const { roomCode, autoStart, isHost: isHostParam } = useLocalSearchParams<{
+    roomCode?: string;
+    autoStart?: string;
+    isHost?: string;
+  }>();
   const code = roomCode ?? '';
   const isAutoStart = autoStart === 'true';
+  const isHost = isHostParam === 'true';
 
   const userId = useAuthStore((s) => s.userId) ?? '';
   const nickname = useAuthStore((s) => s.nickname) ?? '';
-  const playerColor = useGameStore((s) => s.playerColor);
-
-  // Host = red player in a manually created room
-  const isHost = !isAutoStart && playerColor === 'red';
 
   const [timerConfig, setTimerConfig] = useState<TimerOption>(2);
   const [rated, setRatedState] = useState(true);

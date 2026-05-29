@@ -22,8 +22,8 @@ router.post('/create', (req, res) => {
     return;
   }
   const { userId, nickname } = result.data;
-  const roomCode = createRoom('pending', userId, nickname);
-  res.json({ roomCode });
+  const { roomCode, hostColor } = createRoom('pending', userId, nickname);
+  res.json({ roomCode, playerColor: hostColor });
 });
 
 router.post('/join', (req, res) => {
@@ -34,8 +34,8 @@ router.post('/join', (req, res) => {
   }
   const { roomCode, userId, nickname } = result.data;
   try {
-    joinRoom(roomCode, 'pending', userId, nickname);
-    res.json({ ok: true });
+    const playerColor = joinRoom(roomCode, 'pending', userId, nickname);
+    res.json({ ok: true, playerColor });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(404).json({ error: message });
