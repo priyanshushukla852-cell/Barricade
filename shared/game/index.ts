@@ -11,3 +11,5 @@ export { createInitialState } from './createInitialState';
 export { applyMove } from './applyMove';
 export { applyWall } from './applyWall';
 export { checkWinner } from './checkWinner';
+export { getComputerMove } from './getComputerMove';
+export type { ComputerAction, AiDifficulty } from './getComputerMove';

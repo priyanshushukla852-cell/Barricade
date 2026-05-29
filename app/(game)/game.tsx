@@ -18,11 +18,19 @@ import { useGameStore } from '../../store/gameStore';
 import { useAuthStore } from '../../store/authStore';
 import { emit } from '../../hooks/useSocket';
 import { socket } from '../../lib/socketClient';
+import { applyMove, applyWall, checkWinner, getComputerMove } from '@shared/game';
+import type { AiDifficulty } from '@shared/game';
 import type { Direction, Edge, PieceColor, Position } from '@shared/types';
 
 export default function GameScreen() {
-  const { mode, roomCode } = useLocalSearchParams<{ mode?: string; roomCode?: string }>();
+  const { mode, roomCode, difficulty: rawDifficulty } = useLocalSearchParams<{
+    mode?: string;
+    roomCode?: string;
+    difficulty?: string;
+  }>();
   const isOnline = mode === 'online';
+  const isComputer = mode === 'computer';
+  const difficulty: AiDifficulty = rawDifficulty === 'hard' ? 'hard' : 'easy';
 
   const gameState = useGameStore((s) => s.gameState);
   const playerColor = useGameStore((s) => s.playerColor);
@@ -49,7 +57,7 @@ export default function GameScreen() {
     flashTimeoutRef.current = setTimeout(() => setBoardFlashError(false), 300);
   }
 
-  const game = useGame({ online: isOnline, onSocketError: handleSocketError });
+  const game = useGame({ online: isOnline, computer: isComputer, onSocketError: handleSocketError });
   const boardRef = useRef<View>(null);
 
   useEffect(() => {
@@ -88,6 +96,36 @@ export default function GameScreen() {
     }, 1000);
     return () => clearInterval(id);
   }, [isOnline]);
+
+  // Fire the computer's move when it's the computer's turn.
+  useEffect(() => {
+    if (!isComputer) return;
+    if (!gameState || gameState.phase !== 'choosing') return;
+    if (!playerColor || gameState.currentTurn === playerColor) return;
+
+    const delay = 500 + Math.random() * 1000;
+    const id = setTimeout(() => {
+      const state = useGameStore.getState().gameState;
+      if (!state || state.phase !== 'choosing') return;
+      if (!playerColor || state.currentTurn === playerColor) return;
+
+      const action = getComputerMove(state, difficulty);
+      if (action.type === 'move') {
+        try {
+          const next = applyMove(state, action.direction);
+          const winner = checkWinner(next);
+          useGameStore.getState().setGameState(winner ? { ...next, winner, phase: 'game_over' } : next);
+        } catch {}
+      } else {
+        try {
+          const next = applyWall(state, action.edge);
+          useGameStore.getState().setGameState(next);
+        } catch {}
+      }
+    }, delay);
+
+    return () => clearTimeout(id);
+  }, [isComputer, gameState?.currentTurn, gameState?.phase, playerColor, difficulty]);
 
   useEffect(() => {
     if (!isOnline && gameState?.phase === 'game_over' && gameState.winner) {
@@ -152,7 +190,7 @@ export default function GameScreen() {
           <View style={[styles.counterDot, { backgroundColor: '#E24B4A' }]} />
           <Text style={styles.counterText}>{gameState?.redWallsRemaining ?? 10}</Text>
         </View>
-        <WallHand onWallDragStart={game.onStartWallDrag} onWallDrop={handleWallDrop} />
+        <WallHand onWallDragStart={game.onStartWallDrag} onWallDrop={handleWallDrop} computer={isComputer} />
         <View style={styles.wallCounter}>
           <View style={[styles.counterDot, { backgroundColor: '#378ADD' }]} />
           <Text style={styles.counterText}>{gameState?.blueWallsRemaining ?? 10}</Text>

@@ -13,7 +13,8 @@ import { signOut } from '../../hooks/useAuth';
 import { useAuthStore } from '../../store/authStore';
 import { useGameStore } from '../../store/gameStore';
 import { createInitialState } from '@shared/game';
-import type { TimerOption } from '@shared/types';
+import type { AiDifficulty } from '@shared/game';
+import type { PieceColor, TimerOption } from '@shared/types';
 
 const LOCAL_TIMER_OPTIONS: { value: TimerOption; label: string }[] = [
   { value: 0, label: '∞' },
@@ -33,6 +34,8 @@ export default function HomeScreen() {
   const clearSelection = useGameStore((s) => s.clearSelection);
 
   const [localTimer, setLocalTimer] = useState<TimerOption>(0);
+  const [computerColor, setComputerColor] = useState<PieceColor>('blue');
+  const [computerDifficulty, setComputerDifficulty] = useState<AiDifficulty>('easy');
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState('');
   const [joinCode, setJoinCode] = useState('');
@@ -44,6 +47,16 @@ export default function HomeScreen() {
     clearSelection();
     setGameState(createInitialState(localTimer));
     router.push({ pathname: '/(game)/game', params: { mode: 'local', roomCode: '' } });
+  }
+
+  function handleVsComputer() {
+    setPlayerColor(computerColor);
+    clearSelection();
+    setGameState(createInitialState(0));
+    router.push({
+      pathname: '/(game)/game',
+      params: { mode: 'computer', difficulty: computerDifficulty },
+    });
   }
 
   async function handleCreateRoom() {
@@ -125,6 +138,44 @@ export default function HomeScreen() {
           </View>
           <Pressable style={[styles.btn, styles.btnPrimary]} onPress={handleLocalGame}>
             <Text style={styles.btnPrimaryText}>Start Local Game</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>VS Computer</Text>
+
+          <Text style={styles.timerLabel}>Play as</Text>
+          <View style={styles.timerRow}>
+            {(['red', 'blue'] as PieceColor[]).map((c) => (
+              <Pressable
+                key={c}
+                style={[styles.timerBtn, { borderColor: c === 'red' ? '#E24B4A' : '#378ADD' }, computerColor === c && { backgroundColor: c === 'red' ? '#E24B4A' : '#378ADD' }]}
+                onPress={() => setComputerColor(c)}
+              >
+                <Text style={[styles.timerBtnText, { color: c === 'red' ? '#E24B4A' : '#378ADD' }, computerColor === c && styles.timerBtnTextSelected]}>
+                  {c.charAt(0).toUpperCase() + c.slice(1)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={styles.timerLabel}>Difficulty</Text>
+          <View style={styles.timerRow}>
+            {(['easy', 'hard'] as AiDifficulty[]).map((d) => (
+              <Pressable
+                key={d}
+                style={[styles.timerBtn, computerDifficulty === d && styles.timerBtnSelected]}
+                onPress={() => setComputerDifficulty(d)}
+              >
+                <Text style={[styles.timerBtnText, computerDifficulty === d && styles.timerBtnTextSelected]}>
+                  {d.charAt(0).toUpperCase() + d.slice(1)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Pressable style={[styles.btn, styles.btnPrimary]} onPress={handleVsComputer}>
+            <Text style={styles.btnPrimaryText}>Play vs Computer</Text>
           </Pressable>
         </View>
 

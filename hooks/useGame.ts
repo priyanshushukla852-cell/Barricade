@@ -13,9 +13,11 @@ import type { Direction, Edge, Position } from '@shared/types';
 
 export function useGame({
   online = false,
+  computer = false,
   onSocketError,
 }: {
   online?: boolean;
+  computer?: boolean;
   onSocketError?: () => void;
 } = {}) {
   useSocket({ enabled: online, onSocketError });
@@ -30,12 +32,12 @@ export function useGame({
   const clearSelection = useGameStore((s) => s.clearSelection);
 
   // Hot-seat: always act as whichever color's turn it is.
-  // Online: act only as the assigned playerColor.
-  const activeColor = online ? playerColor : (gameState?.currentTurn ?? null);
+  // Online / computer: act only as the assigned playerColor.
+  const activeColor = (online || computer) ? playerColor : (gameState?.currentTurn ?? null);
 
   function isMyTurn(): boolean {
     if (!gameState || gameState.phase !== 'choosing') return false;
-    if (!online) return true;
+    if (!online && !computer) return true;
     if (!playerColor) return false;
     return playerColor === gameState.currentTurn;
   }

@@ -11,6 +11,7 @@ type Orientation = 'vertical' | 'horizontal';
 type Props = {
   onWallDragStart: () => void;
   onWallDrop: (edge: Edge) => void;
+  computer?: boolean;
 };
 
 function snapToEdge(
@@ -110,12 +111,12 @@ function WallToken({
   );
 }
 
-export function WallHand({ onWallDragStart, onWallDrop }: Props) {
+export function WallHand({ onWallDragStart, onWallDrop, computer = false }: Props) {
   const gameState = useGameStore((s) => s.gameState);
   const playerColor = useGameStore((s) => s.playerColor);
   const draggingWall = useGameStore((s) => s.draggingWall);
 
-  const game = useGame();
+  const game = useGame({ computer });
 
   const startRef = useRef(onWallDragStart);
   const dropRef = useRef(onWallDrop);
