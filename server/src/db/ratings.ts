@@ -28,6 +28,67 @@ export interface RatingUpdate {
   loser: { before: number; after: number; delta: number };
 }
 
+export interface GameHistoryEntry {
+  outcome: 'win' | 'loss';
+  ratingBefore: number;
+  ratingAfter: number;
+  delta: number;
+  reason: string;
+  playedAt: string;
+}
+
+export interface PlayerProfile extends PlayerRating {
+  history: GameHistoryEntry[];
+}
+
+export async function getProfile(userId: string): Promise<PlayerProfile> {
+  const [statsRes, historyRes] = await Promise.all([
+    query(`SELECT rating, games_played, wins, losses FROM player_ratings WHERE user_id = $1`, [userId]),
+    query(
+      `SELECT
+         CASE WHEN winner_id = $1 THEN 'win' ELSE 'loss' END AS outcome,
+         CASE WHEN winner_id = $1 THEN winner_rating_before ELSE loser_rating_before END AS rating_before,
+         CASE WHEN winner_id = $1 THEN winner_rating_after ELSE loser_rating_after END AS rating_after,
+         reason, played_at
+       FROM game_results
+       WHERE winner_id = $1 OR loser_id = $1
+       ORDER BY played_at DESC
+       LIMIT 20`,
+      [userId],
+    ),
+  ]);
+
+  const stats =
+    statsRes.rows.length > 0
+      ? (statsRes.rows[0] as { rating: number; games_played: number; wins: number; losses: number })
+      : null;
+
+  const history: GameHistoryEntry[] = (
+    historyRes.rows as Array<{
+      outcome: 'win' | 'loss';
+      rating_before: number;
+      rating_after: number;
+      reason: string;
+      played_at: string;
+    }>
+  ).map((r) => ({
+    outcome: r.outcome,
+    ratingBefore: r.rating_before,
+    ratingAfter: r.rating_after,
+    delta: r.rating_after - r.rating_before,
+    reason: r.reason,
+    playedAt: r.played_at,
+  }));
+
+  return {
+    rating: stats?.rating ?? DEFAULT_RATING,
+    gamesPlayed: stats?.games_played ?? 0,
+    wins: stats?.wins ?? 0,
+    losses: stats?.losses ?? 0,
+    history,
+  };
+}
+
 export async function applyRatings(
   roomCode: string,
   winner: PieceColor,

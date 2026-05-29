@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { getRating } from '../db/ratings';
+import { getRating, getProfile } from '../db/ratings';
 
 const router = Router();
 
@@ -17,6 +17,21 @@ router.get('/me', async (req, res) => {
     res.json(data);
   } catch (err) {
     console.error('GET /ratings/me error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/profile', async (req, res) => {
+  const result = QuerySchema.safeParse(req.query);
+  if (!result.success) {
+    res.status(400).json({ error: 'userId query param required' });
+    return;
+  }
+  try {
+    const data = await getProfile(result.data.userId);
+    res.json(data);
+  } catch (err) {
+    console.error('GET /ratings/profile error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

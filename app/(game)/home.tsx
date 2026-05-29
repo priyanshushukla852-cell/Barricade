@@ -130,14 +130,20 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>BARRICADE</Text>
-          {nickname && (
-            <Text style={styles.subtitle}>
-              {nickname}{rating !== null ? `  ·  ★ ${rating}` : ''}
+        <Pressable
+          style={styles.profileBtn}
+          onPress={() => router.push({ pathname: '/(game)/profile' })}
+        >
+          <View style={styles.profileAvatar}>
+            <Text style={styles.profileAvatarText}>
+              {nickname ? nickname.charAt(0).toUpperCase() : '?'}
             </Text>
-          )}
-        </View>
+          </View>
+          {rating !== null && <Text style={styles.profileRating}>★ {rating}</Text>}
+        </Pressable>
+
+        <Text style={styles.title}>BARRICADE</Text>
+
         <Pressable style={styles.signOutBtn} onPress={signOut}>
           <Text style={styles.signOutText}>Sign Out</Text>
         </Pressable>
@@ -310,8 +316,22 @@ const styles = StyleSheet.create({
     letterSpacing: 3,
     color: '#1A1A1A',
   },
-  subtitle: { fontSize: 13, color: '#888', fontWeight: '500', marginTop: 2 },
-  signOutBtn: { paddingVertical: 6, paddingHorizontal: 12 },
+  profileBtn: {
+    alignItems: 'center',
+    gap: 3,
+    minWidth: 52,
+  },
+  profileAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#4A3728',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileAvatarText: { fontSize: 16, fontWeight: '800', color: '#FFF' },
+  profileRating: { fontSize: 11, color: '#888', fontWeight: '600' },
+  signOutBtn: { paddingVertical: 6, paddingHorizontal: 4, minWidth: 52, alignItems: 'flex-end' },
   signOutText: { fontSize: 14, color: '#888', fontWeight: '600' },
   content: {
     flex: 1,
