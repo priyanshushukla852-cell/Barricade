@@ -44,6 +44,7 @@ export interface ClientToServerEvents {
   leave_queue: (payload: LeaveQueuePayload) => void;
   update_lobby: (payload: UpdateLobbyPayload) => void;
   request_rematch: (payload: { roomCode: string }) => void;
+  chat_message: (payload: { roomCode: string; text: string }) => void;
 }
 
 export interface ServerToClientEvents {
@@ -62,4 +63,5 @@ export interface ServerToClientEvents {
   rematch_requested: () => void;
   rematch_started: (payload: { playerColor: PieceColor }) => void;
   rematch_expired: () => void;
+  chat_message: (payload: { senderId: string; senderNickname: string; text: string; timestamp: number }) => void;
 }

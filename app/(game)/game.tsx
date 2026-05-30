@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Pressable,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -13,6 +14,8 @@ import { PlayerTimer } from '../../components/ui/TimerDisplay';
 import { WallHand } from '../../components/ui/WallHand';
 import { OfflineBanner } from '../../components/ui/OfflineBanner';
 import { ReconnectingOverlay } from '../../components/ui/ReconnectingOverlay';
+import { ChatDrawer } from '../../components/ui/ChatDrawer';
+import type { ChatMessage } from '../../components/ui/ChatDrawer';
 import { useGame } from '../../hooks/useGame';
 import { useGameStore } from '../../store/gameStore';
 import { useAuthStore } from '../../store/authStore';
@@ -50,6 +53,11 @@ export default function GameScreen() {
 
   const [boardFlashError, setBoardFlashError] = useState(false);
   const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const chatOpenRef = useRef(false);
 
   function handleSocketError() {
     if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
@@ -111,6 +119,25 @@ export default function GameScreen() {
     }, 1000);
     return () => clearInterval(id);
   }, [isOnline]);
+
+  // Receive chat messages from the server.
+  useEffect(() => {
+    if (!isOnline) return;
+    function onChatMessage(msg: {
+      senderId: string;
+      senderNickname: string;
+      text: string;
+      timestamp: number;
+    }) {
+      setChatMessages((prev) => [
+        ...prev,
+        { ...msg, id: `${msg.timestamp}-${msg.senderId}`, isMine: msg.senderId === userId },
+      ]);
+      if (!chatOpenRef.current) setUnreadCount((n) => n + 1);
+    }
+    socket.on('chat_message', onChatMessage);
+    return () => { socket.off('chat_message', onChatMessage); };
+  }, [isOnline, userId]);
 
   // Fire the computer's move when it's the computer's turn.
   useEffect(() => {
@@ -176,6 +203,22 @@ export default function GameScreen() {
     });
   }, [setBoardOrigin]);
 
+  function openChat() {
+    chatOpenRef.current = true;
+    setChatOpen(true);
+    setUnreadCount(0);
+  }
+
+  function closeChat() {
+    chatOpenRef.current = false;
+    setChatOpen(false);
+  }
+
+  function handleSendMessage(text: string) {
+    if (!roomCode) return;
+    emit('chat_message', { roomCode, text });
+  }
+
   function handleSquarePress(position: Position, dir?: Direction) {
     if (dir !== undefined) {
       game.onConfirmMove(dir);
@@ -222,6 +265,28 @@ export default function GameScreen() {
 
       {showTimer && <PlayerTimer color={bottomColor} />}
 
+      {isOnline && (
+        <Pressable style={styles.chatFab} onPress={openChat}>
+          <Text style={styles.chatFabIcon}>💬</Text>
+          {unreadCount > 0 && (
+            <View style={styles.chatBadge}>
+              <Text style={styles.chatBadgeText}>
+                {unreadCount > 9 ? '9+' : String(unreadCount)}
+              </Text>
+            </View>
+          )}
+        </Pressable>
+      )}
+
+      {isOnline && (
+        <ChatDrawer
+          visible={chatOpen}
+          messages={chatMessages}
+          onSend={handleSendMessage}
+          onClose={closeChat}
+        />
+      )}
+
       <ReconnectingOverlay />
       <OfflineBanner />
     </SafeAreaView>
@@ -266,5 +331,41 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#333333',
+  },
+  chatFab: {
+    position: 'absolute',
+    bottom: 110,
+    right: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#4A3728',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  chatFabIcon: {
+    fontSize: 22,
+  },
+  chatBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#E24B4A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  chatBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFF',
   },
 });

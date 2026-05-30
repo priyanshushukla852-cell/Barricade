@@ -39,6 +39,7 @@ const QueueSchema = z.object({ userId: z.string(), nickname: z.string() });
 const LeaveQueueSchema = z.object({ userId: z.string() });
 const UpdateLobbySchema = z.object({ roomCode: z.string(), rated: z.boolean() });
 const RematchSchema = z.object({ roomCode: z.string() });
+const ChatSchema = z.object({ roomCode: z.string(), text: z.string().min(1).max(200) });
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -441,6 +442,24 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
       startTurnTimer(io, roomCode);
       io.to(roomCode).emit('game_state', newState);
     }
+  });
+
+  socket.on('chat_message', (payload) => {
+    const result = ChatSchema.safeParse(payload);
+    if (!result.success) return;
+    const { roomCode, text } = result.data;
+    const room = getRoom(roomCode);
+    if (!room) return;
+    const sender = room.red?.socketId === socket.id ? room.red
+      : room.blue?.socketId === socket.id ? room.blue
+      : null;
+    if (!sender) return;
+    io.to(roomCode).emit('chat_message', {
+      senderId: sender.userId,
+      senderNickname: sender.nickname,
+      text: text.trim(),
+      timestamp: Date.now(),
+    });
   });
 
   socket.on('disconnect', () => {
