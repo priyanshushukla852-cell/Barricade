@@ -103,7 +103,9 @@ export default function GameScreen() {
     if (!gameState || gameState.phase !== 'choosing') return;
     if (!playerColor || gameState.currentTurn === playerColor) return;
 
-    const delay = 500 + Math.random() * 1000;
+    const delay = difficulty === 'hard'
+      ? 900 + Math.random() * 700   // 900–1600 ms: feels like it's thinking hard
+      : 400 + Math.random() * 400;  // 400–800 ms: quicker, casual feel
     const id = setTimeout(() => {
       const state = useGameStore.getState().gameState;
       if (!state || state.phase !== 'choosing') return;
