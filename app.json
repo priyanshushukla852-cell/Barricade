@@ -47,7 +47,7 @@
       "expo-router",
       "expo-web-browser",
       "@react-native-google-signin/google-signin",
-      "@sentry/react-native"
+      ["@sentry/react-native", { "uploadSourceMaps": false }]
     ],
     "extra": {
       "router": {},
