@@ -28,6 +28,8 @@ const httpServer = createServer(app);
 
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   cors: { origin: '*' },
+  pingTimeout: 60000,   // wait 60 s for pong before disconnecting (generous for mobile)
+  pingInterval: 25000,  // ping every 25 s
 });
 
 app.use(express.json());

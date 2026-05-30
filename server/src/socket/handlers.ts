@@ -148,6 +148,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
           ? room.blue
           : null;
       if (existing) {
+        const wasDisconnected = room.disconnectTimers.has(userId);
         const timer = room.disconnectTimers.get(userId);
         if (timer) {
           clearTimeout(timer);
@@ -159,6 +160,10 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
         if (room.state) {
           // Game already in progress — catch the player up.
           socket.emit('game_state', room.state);
+          // Tell the opponent their partner is back (clears the reconnecting overlay).
+          if (wasDisconnected) {
+            socket.to(roomCode).emit('opponent_left', { reconnecting: false });
+          }
           // Restart turn timer if it was cleared by a disconnect.
           if (!room.turnTimer && room.state.phase === 'choosing') {
             startTurnTimer(io, roomCode);

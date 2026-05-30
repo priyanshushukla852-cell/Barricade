@@ -66,12 +66,27 @@ export default function GameScreen() {
   }, [roomCode, setRoomCode]);
 
   // For online games, register this socket with the server room so broadcasts reach us.
-  // This covers the joiner (who navigates directly here) and the host (who arrives
-  // via the lobby after the game starts).
+  // Re-emit join_lobby on every reconnect so the server clears the disconnect timer
+  // and the opponent's "connection lost" overlay disappears.
   useEffect(() => {
     if (!isOnline || !roomCode || !userId || !nickname) return;
-    if (!socket.connected) socket.connect();
-    emit('join_lobby', { roomCode, userId, nickname });
+
+    function onConnect() {
+      emit('join_lobby', { roomCode: roomCode!, userId: userId!, nickname: nickname! });
+    }
+
+    socket.on('connect', onConnect);
+
+    if (socket.connected) {
+      emit('join_lobby', { roomCode, userId, nickname });
+    } else {
+      socket.connect();
+      // join_lobby will fire via the connect event above
+    }
+
+    return () => {
+      socket.off('connect', onConnect);
+    };
   }, [isOnline, roomCode, userId, nickname]);
 
   // Client-side chess clock for local games.

@@ -66,6 +66,14 @@ export function useSocket({
       setReconnecting(reconnecting);
     }
 
+    function onDisconnect() {
+      setReconnecting(true);
+    }
+
+    function onConnect() {
+      setReconnecting(false);
+    }
+
     function onError({ message }: { message: string }) {
       console.warn(message);
       onSocketErrorRef.current?.();
@@ -75,6 +83,8 @@ export function useSocket({
     socket.on('timer_tick', onTimerTick);
     socket.on('game_over', onGameOver);
     socket.on('opponent_left', onOpponentLeft);
+    socket.on('disconnect', onDisconnect);
+    socket.on('connect', onConnect);
     socket.on('error', onError);
 
     return () => {
@@ -82,6 +92,8 @@ export function useSocket({
       socket.off('timer_tick', onTimerTick);
       socket.off('game_over', onGameOver);
       socket.off('opponent_left', onOpponentLeft);
+      socket.off('disconnect', onDisconnect);
+      socket.off('connect', onConnect);
       socket.off('error', onError);
     };
   }, [enabled, setGameState, setReconnecting, router]);
