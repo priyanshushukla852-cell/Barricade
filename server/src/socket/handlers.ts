@@ -38,6 +38,7 @@ const LeaveSchema = z.object({ roomCode: z.string() });
 const QueueSchema = z.object({ userId: z.string(), nickname: z.string() });
 const LeaveQueueSchema = z.object({ userId: z.string() });
 const UpdateLobbySchema = z.object({ roomCode: z.string(), rated: z.boolean() });
+const RematchSchema = z.object({ roomCode: z.string() });
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -81,7 +82,9 @@ async function finalizeGame(
     saveGame(roomCode, winner, room.red.userId, room.blue.userId, room.startedAt).catch((err) => logger.error({ err }, 'finalizeGame error'));
   }
 
-  deleteRoom(roomCode);
+  // Keep room alive for 90 s to allow rematch, then clean up.
+  if (room.cleanupTimer) clearTimeout(room.cleanupTimer);
+  room.cleanupTimer = setTimeout(() => deleteRoom(roomCode), 90_000);
 }
 
 export function clearTurnTimer(room: Room): void {
@@ -384,6 +387,55 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
     const result = LeaveQueueSchema.safeParse(payload);
     if (!result.success) return;
     dequeue(result.data.userId);
+  });
+
+  socket.on('request_rematch', (payload) => {
+    const result = RematchSchema.safeParse(payload);
+    if (!result.success) return;
+    const { roomCode } = result.data;
+    const room = getRoom(roomCode);
+    if (!room || !room.red || !room.blue) return;
+
+    const requester = room.red.socketId === socket.id ? room.red
+      : room.blue.socketId === socket.id ? room.blue
+      : null;
+    if (!requester) return;
+
+    room.rematchRequests.add(requester.userId);
+
+    if (room.rematchRequests.size === 1) {
+      // First request: notify opponent and start 30 s window.
+      socket.to(roomCode).emit('rematch_requested');
+      room.rematchTimer = setTimeout(() => {
+        const r = getRoom(roomCode);
+        if (!r) return;
+        io.to(roomCode).emit('rematch_expired');
+        if (r.rematchTimer) { clearTimeout(r.rematchTimer); r.rematchTimer = null; }
+      }, 30_000);
+    } else {
+      // Both requested: swap colors, start new game.
+      if (room.rematchTimer) { clearTimeout(room.rematchTimer); room.rematchTimer = null; }
+      if (room.cleanupTimer) { clearTimeout(room.cleanupTimer); room.cleanupTimer = null; }
+
+      const oldRed = { ...room.red };
+      const oldBlue = { ...room.blue };
+      room.red = { ...oldBlue, color: 'red' };
+      room.blue = { ...oldRed, color: 'blue' };
+      room.rematchRequests.clear();
+
+      const timerConfig = (room.state?.timerConfig ?? 3) as import('@shared/types').TimerOption;
+      const newState = createInitialState(timerConfig === 0 ? 3 : timerConfig);
+      updateState(roomCode, newState);
+      room.startedAt = new Date();
+
+      const redSock = io.sockets.sockets.get(room.red.socketId);
+      const blueSock = io.sockets.sockets.get(room.blue.socketId);
+      redSock?.emit('rematch_started', { playerColor: 'red' });
+      blueSock?.emit('rematch_started', { playerColor: 'blue' });
+
+      startTurnTimer(io, roomCode);
+      io.to(roomCode).emit('game_state', newState);
+    }
   });
 
   socket.on('disconnect', () => {

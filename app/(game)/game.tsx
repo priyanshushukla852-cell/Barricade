@@ -138,7 +138,13 @@ export default function GameScreen() {
           : gameState.blueTimeRemaining === 0);
       router.replace({
         pathname: '/(game)/result',
-        params: { winner: gameState.winner, reason: timedOut ? 'timeout' : 'reached_goal' },
+        params: {
+          winner: gameState.winner,
+          reason: timedOut ? 'timeout' : 'reached_goal',
+          mode,
+          difficulty: rawDifficulty ?? 'easy',
+          timerConfig: String(gameState.timerConfig),
+        },
       });
     }
   }, [isOnline, gameState?.phase, gameState?.winner]);

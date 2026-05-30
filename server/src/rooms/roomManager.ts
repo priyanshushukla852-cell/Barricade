@@ -19,6 +19,9 @@ export type Room = {
   disconnectTimers: Map<string, NodeJS.Timeout>;
   tickInterval: NodeJS.Timeout | null;
   turnTimer: NodeJS.Timeout | null;
+  rematchRequests: Set<string>;
+  rematchTimer: NodeJS.Timeout | null;
+  cleanupTimer: NodeJS.Timeout | null;
 };
 
 const rooms = new Map<string, Room>();
@@ -57,6 +60,9 @@ export function createRoom(
     disconnectTimers: new Map(),
     tickInterval: null,
     turnTimer: null,
+    rematchRequests: new Set(),
+    rematchTimer: null,
+    cleanupTimer: null,
   });
   return { roomCode, hostColor };
 }
@@ -78,6 +84,9 @@ export function createMatchedRoom(
     disconnectTimers: new Map(),
     tickInterval: null,
     turnTimer: null,
+    rematchRequests: new Set(),
+    rematchTimer: null,
+    cleanupTimer: null,
   });
   return roomCode;
 }

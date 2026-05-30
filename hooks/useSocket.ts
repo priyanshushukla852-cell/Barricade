@@ -47,11 +47,14 @@ export function useSocket({
       const current = useGameStore.getState().gameState;
       if (current) setGameState({ ...current, winner, phase: 'game_over' });
       if (ratingChange) useAuthStore.getState().setRating(ratingChange.after);
+      const roomCode = useGameStore.getState().roomCode ?? '';
       router.replace({
         pathname: '/(game)/result',
         params: {
           winner,
           reason,
+          mode: 'online',
+          roomCode,
           ratingBefore: ratingChange ? String(ratingChange.before) : undefined,
           ratingAfter: ratingChange ? String(ratingChange.after) : undefined,
           ratingDelta: ratingChange ? String(ratingChange.delta) : undefined,

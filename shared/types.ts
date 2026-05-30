@@ -43,6 +43,7 @@ export interface ClientToServerEvents {
   join_queue: (payload: QueuePayload) => void;
   leave_queue: (payload: LeaveQueuePayload) => void;
   update_lobby: (payload: UpdateLobbyPayload) => void;
+  request_rematch: (payload: { roomCode: string }) => void;
 }
 
 export interface ServerToClientEvents {
@@ -58,4 +59,7 @@ export interface ServerToClientEvents {
   opponent_left: (payload: { reconnecting: boolean; secondsLeft?: number }) => void;
   matched: (payload: MatchedPayload) => void;
   error: (payload: { message: string }) => void;
+  rematch_requested: () => void;
+  rematch_started: (payload: { playerColor: PieceColor }) => void;
+  rematch_expired: () => void;
 }
