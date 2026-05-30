@@ -12,7 +12,6 @@
     "lint:fix": "eslint \"**/*.{ts,tsx}\" --fix"
   },
   "dependencies": {
-    "@expo/ngrok": "^4.1.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/netinfo": "11.4.1",
     "@react-native-google-signin/google-signin": "^16.1.2",
@@ -20,11 +19,9 @@
     "@react-navigation/native-stack": "^7.15.0",
     "@sentry/react-native": "~7.2.0",
     "expo": "~54.0.33",
-    "expo-auth-session": "~7.0.11",
     "expo-clipboard": "~8.0.8",
     "expo-constants": "~18.0.13",
     "expo-crypto": "~15.0.9",
-    "expo-dev-client": "~6.0.21",
     "expo-linking": "~8.0.12",
     "expo-router": "~6.0.23",
     "expo-status-bar": "~3.0.9",
