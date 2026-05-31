@@ -1,6 +1,8 @@
-import type { Direction, Edge, GameState, Position } from '@shared/types';
+import type { Direction, Edge, GameState, PieceColor, Position } from '@shared/types';
 import { getValidMoves } from './getValidMoves';
 import { applyMove } from './applyMove';
+import { applyWall } from './applyWall';
+import { checkWinner } from './checkWinner';
 import { isWallPlacementValid } from './isWallPlacementValid';
 import { normalizeEdge } from './normalizeEdge';
 import { getCompanionEdge } from './getCompanionEdge';
@@ -13,10 +15,12 @@ export type ComputerAction =
 
 export type AiDifficulty = 'easy' | 'hard';
 
-// BFS shortest distance from `from` to any square in `targetRow`.
+// ─── Shared BFS helpers ──────────────────────────────────────────────────────
+
+const DIRS = ['up', 'down', 'left', 'right'] as const;
+
 function bfsDistance(walls: Edge[], from: Position, targetRow: number): number {
   if (from.row === targetRow) return 0;
-  const DIRS = ['up', 'down', 'left', 'right'] as const;
   const visited = new Set<string>([`${from.row},${from.col}`]);
   const queue: Array<{ pos: Position; dist: number }> = [{ pos: from, dist: 0 }];
   while (queue.length > 0) {
@@ -35,11 +39,10 @@ function bfsDistance(walls: Edge[], from: Position, targetRow: number): number {
   return Infinity;
 }
 
-// BFS shortest path — returns list of positions from `from` to goal row (inclusive),
-// or null if no path exists.
+// Returns the full BFS path from `from` to the closest square in `targetRow`,
+// or null if unreachable.
 function bfsPath(walls: Edge[], from: Position, targetRow: number): Position[] | null {
   if (from.row === targetRow) return [from];
-  const DIRS = ['up', 'down', 'left', 'right'] as const;
   const parent = new Map<string, string | null>();
   const posMap = new Map<string, Position>();
   const fromKey = `${from.row},${from.col}`;
@@ -75,23 +78,7 @@ function bfsPath(walls: Edge[], from: Position, targetRow: number): Position[] |
   return path;
 }
 
-// Returns true if the opponent at `oppPos` could jump over `myNewPos` next turn.
-// A jump is possible when: opponent is adjacent to myNewPos, no wall between them,
-// the square behind myNewPos (same direction) is in-bounds and unblocked.
-function couldBeJumped(walls: Edge[], myNewPos: Position, oppPos: Position): boolean {
-  const DIRS = ['up', 'down', 'left', 'right'] as const;
-  for (const dir of DIRS) {
-    const adj = getAdjacentSquare(oppPos, dir);
-    if (!adj) continue;
-    if (adj.row !== myNewPos.row || adj.col !== myNewPos.col) continue;
-    if (isWallBlocking(walls, oppPos, myNewPos)) continue;
-    const jumpTarget = getAdjacentSquare(myNewPos, dir);
-    if (!jumpTarget) continue;
-    if (isWallBlocking(walls, myNewPos, jumpTarget)) continue;
-    return true;
-  }
-  return false;
-}
+// ─── Wall helpers ────────────────────────────────────────────────────────────
 
 function edgesEqual(a: Edge, b: Edge): boolean {
   return (
@@ -100,7 +87,6 @@ function edgesEqual(a: Edge, b: Edge): boolean {
   );
 }
 
-// Returns true if the wall (primary + companion) blocks any step on `path`.
 function wallBlocksPath(edge: Edge, companion: Edge, path: Position[]): boolean {
   for (let i = 0; i < path.length - 1; i++) {
     const norm = normalizeEdge({ from: path[i], to: path[i + 1] });
@@ -109,7 +95,6 @@ function wallBlocksPath(edge: Edge, companion: Edge, path: Position[]): boolean 
   return false;
 }
 
-// All 128 primary wall edges (8×8 per orientation, companion always goes right/down).
 function allWallCandidates(): Edge[] {
   const candidates: Edge[] = [];
   for (let row = 0; row <= 7; row++) {
@@ -130,6 +115,7 @@ function randomValidWall(state: GameState): Edge | null {
 }
 
 // ─── Easy: greedy BFS toward own goal; occasionally places a random wall ────
+
 function easyMove(state: GameState): ComputerAction {
   const computer = state.currentTurn;
   const myGoalRow = computer === 'red' ? 8 : 0;
@@ -156,83 +142,152 @@ function easyMove(state: GameState): ComputerAction {
   return { type: 'move', direction: bestDir };
 }
 
-// ─── Hard: jump-aware race logic with opponent-path targeted walls ───────────
+// ─── Hard: minimax with alpha-beta pruning ───────────────────────────────────
+
+const SEARCH_DEPTH = 3;
+const MAX_WALL_CANDIDATES = 4;
+
+// Evaluation from `aiColor`'s perspective — higher is better.
+function evaluate(state: GameState, aiColor: PieceColor): number {
+  const myPos  = aiColor === 'red' ? state.redPosition  : state.bluePosition;
+  const oppPos = aiColor === 'red' ? state.bluePosition : state.redPosition;
+  const myGoalRow  = aiColor === 'red' ? 8 : 0;
+  const oppGoalRow = aiColor === 'red' ? 0 : 8;
+  const myDist  = bfsDistance(state.placedWalls, myPos,  myGoalRow);
+  const oppDist = bfsDistance(state.placedWalls, oppPos, oppGoalRow);
+  return oppDist - myDist;
+}
+
+// Returns up to MAX_WALL_CANDIDATES walls for the current player.
+// Pre-filters cheaply via wallBlocksPath before running the expensive
+// isWallPlacementValid BFS, keeping the search branching factor small.
+function searchWallCandidates(state: GameState): Edge[] {
+  const current = state.currentTurn;
+  const myPos  = current === 'red' ? state.redPosition  : state.bluePosition;
+  const oppPos = current === 'red' ? state.bluePosition : state.redPosition;
+  const myGoalRow  = current === 'red' ? 8 : 0;
+  const oppGoalRow = current === 'red' ? 0 : 8;
+  const wallsLeft  = current === 'red' ? state.redWallsRemaining : state.blueWallsRemaining;
+  if (wallsLeft === 0) return [];
+
+  const oppPath = bfsPath(state.placedWalls, oppPos, oppGoalRow);
+  if (!oppPath) return [];
+
+  const curOppDist = oppPath.length - 1;
+  const curMyDist  = bfsDistance(state.placedWalls, myPos, myGoalRow);
+
+  const scored: Array<{ edge: Edge; score: number }> = [];
+
+  for (const edge of allWallCandidates()) {
+    const companion = getCompanionEdge(edge);
+    if (!companion) continue;
+    // Cheap filter: ignore walls that don't cut the opponent's current path.
+    if (!wallBlocksPath(edge, companion, oppPath)) continue;
+    // Full validity check (overlap + intersection + path existence).
+    if (!isWallPlacementValid(state, edge)) continue;
+
+    const hypo = [...state.placedWalls, edge, companion];
+    const newOppDist = bfsDistance(hypo, oppPos, oppGoalRow);
+    const newMyDist  = bfsDistance(hypo, myPos,  myGoalRow);
+    const score = 2 * (newOppDist - curOppDist) - (newMyDist - curMyDist);
+    if (score > 0) scored.push({ edge, score });
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, MAX_WALL_CANDIDATES).map(s => s.edge);
+}
+
+function minimax(
+  state: GameState,
+  depth: number,
+  alpha: number,
+  beta: number,
+  aiColor: PieceColor,
+): number {
+  const winner = checkWinner(state);
+  if (winner !== null) {
+    // Add depth bonus so the AI prefers winning sooner and losing later.
+    return winner === aiColor ? 10000 + depth : -(10000 + depth);
+  }
+  if (depth === 0) return evaluate(state, aiColor);
+
+  const isMax = state.currentTurn === aiColor;
+  let best = isMax ? -Infinity : Infinity;
+
+  // ── Evaluate move actions ────────────────────────────────────────────────
+  for (const dir of getValidMoves(state)) {
+    let next: GameState;
+    try { next = applyMove(state, dir); } catch { continue; }
+    const score = minimax(next, depth - 1, alpha, beta, aiColor);
+    if (isMax) {
+      if (score > best) best = score;
+      if (best > alpha) alpha = best;
+    } else {
+      if (score < best) best = score;
+      if (best < beta) beta = best;
+    }
+    if (beta <= alpha) break;
+  }
+
+  // ── Evaluate wall actions (skip if already cut off by alpha-beta) ────────
+  if (beta > alpha) {
+    for (const edge of searchWallCandidates(state)) {
+      let next: GameState;
+      try { next = applyWall(state, edge); } catch { continue; }
+      const score = minimax(next, depth - 1, alpha, beta, aiColor);
+      if (isMax) {
+        if (score > best) best = score;
+        if (best > alpha) alpha = best;
+      } else {
+        if (score < best) best = score;
+        if (best < beta) beta = best;
+      }
+      if (beta <= alpha) break;
+    }
+  }
+
+  // Fallback if no actions were found (shouldn't occur in a valid game state).
+  return best === (isMax ? -Infinity : Infinity) ? evaluate(state, aiColor) : best;
+}
+
 function hardMove(state: GameState): ComputerAction {
   const computer = state.currentTurn;
-  const myPos = computer === 'red' ? state.redPosition : state.bluePosition;
-  const oppPos = computer === 'red' ? state.bluePosition : state.redPosition;
-  const myGoalRow = computer === 'red' ? 8 : 0;
-  const oppGoalRow = computer === 'red' ? 0 : 8;
-  const wallsRemaining = computer === 'red' ? state.redWallsRemaining : state.blueWallsRemaining;
 
-  const curMyDist = bfsDistance(state.placedWalls, myPos, myGoalRow);
-  const curOppDist = bfsDistance(state.placedWalls, oppPos, oppGoalRow);
-
-  // ── 1. Immediate win ──────────────────────────────────────────────────────
-  const validDirs = getValidMoves(state);
-  for (const dir of validDirs) {
+  // Take an immediate win without burning search budget.
+  for (const dir of getValidMoves(state)) {
     try {
       const next = applyMove(state, dir);
-      const newMyPos = computer === 'red' ? next.redPosition : next.bluePosition;
-      if (newMyPos.row === myGoalRow) return { type: 'move', direction: dir };
+      if (checkWinner(next)) return { type: 'move', direction: dir };
     } catch { /* skip */ }
   }
 
-  // ── 2. Best move direction (jump-penalized) ───────────────────────────────
-  let bestDir = validDirs[0];
-  let bestMoveScore = Infinity;
+  const dirs = getValidMoves(state);
+  const wallEdges = searchWallCandidates(state);
 
-  for (const dir of validDirs) {
-    try {
-      const next = applyMove(state, dir);
-      const newMyPos = computer === 'red' ? next.redPosition : next.bluePosition;
-      let dist = bfsDistance(state.placedWalls, newMyPos, myGoalRow);
-      // Penalise positions where opponent can jump over us next turn
-      if (couldBeJumped(state.placedWalls, newMyPos, oppPos)) dist += 2;
-      if (dist < bestMoveScore) { bestMoveScore = dist; bestDir = dir; }
-    } catch { /* skip */ }
-  }
+  let bestAction: ComputerAction = { type: 'move', direction: dirs[0] ?? 'up' };
+  let bestScore = -Infinity;
 
-  // ── 3. Wall evaluation ────────────────────────────────────────────────────
-  if (wallsRemaining > 0) {
-    const oppPath = bfsPath(state.placedWalls, oppPos, oppGoalRow);
-
-    let bestWall: Edge | null = null;
-    let bestWallScore = -Infinity;
-
-    for (const edge of allWallCandidates()) {
-      if (!isWallPlacementValid(state, edge)) continue;
-      const companion = getCompanionEdge(edge)!;
-      const hypo = [...state.placedWalls, edge, companion];
-
-      const newOppDist = bfsDistance(hypo, oppPos, oppGoalRow);
-      const newMyDist = bfsDistance(hypo, myPos, myGoalRow);
-
-      const oppGain = newOppDist - curOppDist;
-      const myLoss = newMyDist - curMyDist;
-
-      // Weight blocking the opponent twice as much as slowing ourselves.
-      let score = 2 * oppGain - myLoss;
-
-      // Bonus for cutting directly across the opponent's actual shortest path.
-      if (oppPath && wallBlocksPath(edge, companion, oppPath)) score += 1;
-
-      if (score > bestWallScore) { bestWallScore = score; bestWall = edge; }
-    }
-
-    // Threshold scales with race gap:
-    //   winning by 2+  → only place exceptional walls (avoid wasting turns)
-    //   tied/slightly ahead → standard threshold
-    //   losing          → any net-positive wall
-    const raceGap = curMyDist - curOppDist; // positive = AI is losing the race
-    const threshold = raceGap <= -2 ? 4 : raceGap <= 0 ? 2 : 1;
-
-    if (bestWall !== null && bestWallScore >= threshold) {
-      return { type: 'wall', edge: bestWall };
+  for (const dir of dirs) {
+    let next: GameState;
+    try { next = applyMove(state, dir); } catch { continue; }
+    const score = minimax(next, SEARCH_DEPTH - 1, -Infinity, Infinity, computer);
+    if (score > bestScore) {
+      bestScore = score;
+      bestAction = { type: 'move', direction: dir };
     }
   }
 
-  return { type: 'move', direction: bestDir };
+  for (const edge of wallEdges) {
+    let next: GameState;
+    try { next = applyWall(state, edge); } catch { continue; }
+    const score = minimax(next, SEARCH_DEPTH - 1, -Infinity, Infinity, computer);
+    if (score > bestScore) {
+      bestScore = score;
+      bestAction = { type: 'wall', edge };
+    }
+  }
+
+  return bestAction;
 }
 
 export function getComputerMove(state: GameState, difficulty: AiDifficulty): ComputerAction {
