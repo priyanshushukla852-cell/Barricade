@@ -178,7 +178,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
             io.to(roomCode).emit('lobby_info', { rated: room.rated });
             // Auto-start for random-matched rooms (no host needed).
             if (room.autoStart) {
-              const state = createInitialState(3);
+              const state = createInitialState(5);
               updateState(roomCode, state);
               room.startedAt = new Date();
               startTurnTimer(io, roomCode);
@@ -429,8 +429,8 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
       room.blue = { ...oldRed, color: 'blue' };
       room.rematchRequests.clear();
 
-      const timerConfig = (room.state?.timerConfig ?? 3) as import('@shared/types').TimerOption;
-      const newState = createInitialState(timerConfig === 0 ? 3 : timerConfig);
+      const timerConfig = (room.state?.timerConfig ?? 5) as import('@shared/types').TimerOption;
+      const newState = createInitialState(timerConfig === 0 ? 5 : timerConfig);
       updateState(roomCode, newState);
       room.startedAt = new Date();
 

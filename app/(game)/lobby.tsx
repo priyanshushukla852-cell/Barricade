@@ -29,7 +29,7 @@ export default function LobbyScreen() {
   const userId = useAuthStore((s) => s.userId) ?? '';
   const nickname = useAuthStore((s) => s.nickname) ?? '';
 
-  const [timerConfig, setTimerConfig] = useState<TimerOption>(2);
+  const [timerConfig, setTimerConfig] = useState<TimerOption>(5);
   const [rated, setRatedState] = useState(true);
   const [opponentJoined, setOpponentJoined] = useState(false);
   const [copied, setCopied] = useState(false);
