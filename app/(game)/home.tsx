@@ -212,6 +212,11 @@ export default function HomeScreen() {
         </View>
       </View>
 
+      {/* Rules link */}
+      <Pressable style={styles.rulesBtn} onPress={() => router.push('/(game)/rules')}>
+        <Text style={styles.rulesText}>How to play</Text>
+      </Pressable>
+
       {/* Setup Sheet */}
       <Modal
         visible={sheet !== null}
@@ -380,6 +385,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   error: { color: '#EE2222', fontSize: 13, textAlign: 'center' },
+  rulesBtn: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  rulesText: {
+    fontSize: 14,
+    color: '#AAA',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
 
   // Modal sheet
   overlay: {
