@@ -3,19 +3,17 @@ import express from 'express';
 import * as Sentry from '@sentry/node';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import { readFileSync } from 'fs';
-import { join } from 'path';
 import type { ServerToClientEvents, ClientToServerEvents } from '@shared/types';
 import { registerSocketHandlers } from './socket/handlers';
 import { query } from './db/client';
+import { MIGRATION_SQL } from './db/migrations';
 import lobbyRouter from './routes/lobby';
 import ratingsRouter from './routes/ratings';
 import logger from './logger';
 
 async function runMigrations() {
   try {
-    const sql = readFileSync(join(__dirname, '../src/db/migrate.sql'), 'utf8');
-    await query(sql);
+    await query(MIGRATION_SQL);
     logger.info('Migrations applied');
   } catch (err) {
     logger.error({ err }, 'Migration error');
