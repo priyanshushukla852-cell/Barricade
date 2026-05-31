@@ -11,7 +11,7 @@ import { normalizeEdge } from '@shared/game';
 import { CELL_SIZE } from './SquareComponent';
 import type { Edge } from '@shared/types';
 
-const WALL_THICKNESS = 4;
+const WALL_THICKNESS = 7;
 const BOARD_PIXEL_SIZE = CELL_SIZE * 9;
 
 const WALL_LENGTH = CELL_SIZE * 2;
