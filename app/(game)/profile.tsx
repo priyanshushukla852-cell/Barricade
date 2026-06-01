@@ -32,10 +32,10 @@ interface ProfileData {
   history: HistoryEntry[];
 }
 
-function reasonLabel(reason: string): string {
-  if (reason === 'reached_goal') return 'Goal reached';
-  if (reason === 'timeout') return 'Timeout';
-  if (reason === 'opponent_left') return 'Opponent left';
+function reasonLabel(reason: string, outcome: 'win' | 'loss'): string {
+  if (reason === 'reached_goal') return outcome === 'win' ? 'Goal reached' : 'Goal reached';
+  if (reason === 'timeout') return outcome === 'win' ? 'Opponent timed out' : 'Timeout';
+  if (reason === 'opponent_left') return outcome === 'win' ? 'Opponent left' : 'You left';
   return reason;
 }
 
@@ -200,7 +200,7 @@ export default function ProfileScreen() {
                     <Text style={styles.badgeText}>{item.outcome === 'win' ? 'W' : 'L'}</Text>
                   </View>
                   <View style={styles.historyInfo}>
-                    <Text style={styles.historyReason}>{reasonLabel(item.reason)}</Text>
+                    <Text style={styles.historyReason}>{reasonLabel(item.reason, item.outcome)}</Text>
                     <Text style={styles.historyDate}>{formatDate(item.playedAt)}</Text>
                   </View>
                   <View style={styles.historyRating}>
