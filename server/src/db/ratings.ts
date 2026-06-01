@@ -39,9 +39,12 @@ export interface GameHistoryEntry {
 
 export interface PlayerProfile extends PlayerRating {
   history: GameHistoryEntry[];
+  hasMore: boolean;
 }
 
-export async function getProfile(userId: string): Promise<PlayerProfile> {
+const PAGE_SIZE = 10;
+
+export async function getProfile(userId: string, offset = 0): Promise<PlayerProfile> {
   const [statsRes, historyRes] = await Promise.all([
     query(`SELECT rating, games_played, wins, losses FROM player_ratings WHERE user_id = $1`, [userId]),
     query(
@@ -53,8 +56,8 @@ export async function getProfile(userId: string): Promise<PlayerProfile> {
        FROM game_results
        WHERE winner_id = $1 OR loser_id = $1
        ORDER BY played_at DESC
-       LIMIT 20`,
-      [userId],
+       LIMIT $2 OFFSET $3`,
+      [userId, PAGE_SIZE + 1, offset],
     ),
   ]);
 
@@ -63,15 +66,15 @@ export async function getProfile(userId: string): Promise<PlayerProfile> {
       ? (statsRes.rows[0] as { rating: number; games_played: number; wins: number; losses: number })
       : null;
 
-  const history: GameHistoryEntry[] = (
-    historyRes.rows as Array<{
-      outcome: 'win' | 'loss';
-      rating_before: number;
-      rating_after: number;
-      reason: string;
-      played_at: string;
-    }>
-  ).map((r) => ({
+  const rows = historyRes.rows as Array<{
+    outcome: 'win' | 'loss';
+    rating_before: number;
+    rating_after: number;
+    reason: string;
+    played_at: string;
+  }>;
+  const hasMore = rows.length > PAGE_SIZE;
+  const history: GameHistoryEntry[] = rows.slice(0, PAGE_SIZE).map((r) => ({
     outcome: r.outcome,
     ratingBefore: r.rating_before,
     ratingAfter: r.rating_after,
@@ -86,6 +89,7 @@ export async function getProfile(userId: string): Promise<PlayerProfile> {
     wins: stats?.wins ?? 0,
     losses: stats?.losses ?? 0,
     history,
+    hasMore,
   };
 }
 

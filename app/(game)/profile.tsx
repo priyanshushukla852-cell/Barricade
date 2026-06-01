@@ -30,6 +30,7 @@ interface ProfileData {
   wins: number;
   losses: number;
   history: HistoryEntry[];
+  hasMore: boolean;
 }
 
 function reasonLabel(reason: string, outcome: 'win' | 'loss'): string {
@@ -48,6 +49,10 @@ export default function ProfileScreen() {
   const userId = useAuthStore((s) => s.userId);
   const nickname = useAuthStore((s) => s.nickname);
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextOffset, setNextOffset] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
@@ -61,13 +66,16 @@ export default function ProfileScreen() {
       setLoading(false);
       return;
     }
-    fetch(`${SERVER_URL}/ratings/profile?userId=${encodeURIComponent(userId)}`)
+    fetch(`${SERVER_URL}/ratings/profile?userId=${encodeURIComponent(userId)}&offset=0`)
       .then((r) => {
         if (!r.ok) throw new Error('Server error');
         return r.json();
       })
       .then((data: ProfileData) => {
         setProfile(data);
+        setHistory(data.history);
+        setHasMore(data.hasMore);
+        setNextOffset(data.history.length);
         setLoading(false);
       })
       .catch(() => {
@@ -75,6 +83,25 @@ export default function ProfileScreen() {
         setLoading(false);
       });
   }, [userId]);
+
+  async function handleLoadMore() {
+    if (!userId || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const r = await fetch(
+        `${SERVER_URL}/ratings/profile?userId=${encodeURIComponent(userId)}&offset=${nextOffset}`,
+      );
+      if (!r.ok) throw new Error('Server error');
+      const data = (await r.json()) as ProfileData;
+      setHistory((prev) => [...prev, ...data.history]);
+      setHasMore(data.hasMore);
+      setNextOffset((prev) => prev + data.history.length);
+    } catch {
+      // silently ignore load-more errors
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   async function handleSave() {
     const trimmed = editValue.trim();
@@ -101,7 +128,6 @@ export default function ProfileScreen() {
     setTimeout(() => inputRef.current?.focus(), 50);
   }
 
-  const history = profile?.history ?? [];
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -213,6 +239,18 @@ export default function ProfileScreen() {
                   </View>
                 </View>
               ))}
+              {hasMore && (
+                <Pressable
+                  style={[styles.loadMoreBtn, loadingMore && styles.loadMoreBtnDisabled]}
+                  onPress={handleLoadMore}
+                  disabled={loadingMore}
+                >
+                  {loadingMore
+                    ? <ActivityIndicator size="small" color="#4A3728" />
+                    : <Text style={styles.loadMoreText}>Load more</Text>
+                  }
+                </Pressable>
+              )}
             </>
           ) : (
             !loading && <Text style={styles.emptyText}>No games played yet.</Text>
@@ -346,4 +384,17 @@ const styles = StyleSheet.create({
   deltaLoss: { color: '#EE2222' },
 
   emptyText: { textAlign: 'center', color: '#AAA', marginTop: 32, fontSize: 15 },
+
+  loadMoreBtn: {
+    marginHorizontal: 24,
+    marginTop: 4,
+    marginBottom: 8,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#4A3728',
+    alignItems: 'center',
+  },
+  loadMoreBtnDisabled: { opacity: 0.5 },
+  loadMoreText: { color: '#4A3728', fontSize: 14, fontWeight: '700' },
 });
