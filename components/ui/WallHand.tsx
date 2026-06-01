@@ -86,8 +86,15 @@ function WallToken({
         if (edge) moveRef.current(edge);
       },
       onPanResponderRelease: (_, { moveX, moveY }) => {
-        const { boardOrigin, playerColor } = useGameStore.getState();
+        const { boardOrigin, playerColor, wallPreview, wallPreviewValid } = useGameStore.getState();
         if (!boardOrigin) return;
+        // Prefer the last valid preview edge — avoids snap drift between the last
+        // move event and the release event causing the placement to land on a
+        // different (invalid) edge from the one shown in green.
+        if (wallPreview && wallPreviewValid) {
+          dropRef.current(wallPreview);
+          return;
+        }
         const edge = snapToEdge(moveX, moveY, boardOrigin, orientation, playerColor === 'red');
         if (edge) {
           dropRef.current(edge);
