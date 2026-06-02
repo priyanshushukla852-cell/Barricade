@@ -1,10 +1,10 @@
 {
-  "cli": { "version": ">= 5.0.0" },
+  "cli": { "version": ">= 5.0.0", "appVersionSource": "local" },
   "build": {
     "development": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_SERVER_URL": "https://barricade-production.up.railway.app",
+        "EXPO_PUBLIC_SERVER_URL": "http://localhost:3001",
         "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyDboNFugMqoeUvXi567hNICqFpchmlufCY",
         "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "barricade-8ae54.firebaseapp.com",
         "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "barricade-8ae54",
