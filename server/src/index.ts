@@ -1,5 +1,7 @@
 import './instrument';
 import express from 'express';
+import cors from 'cors';
+import { rateLimit } from 'express-rate-limit';
 import * as Sentry from '@sentry/node';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -21,16 +23,51 @@ async function runMigrations() {
 }
 runMigrations();
 
+const IS_PROD = process.env.NODE_ENV === 'production';
+
+const allowedOrigins = IS_PROD
+  ? (process.env.ALLOWED_ORIGINS ?? '').split(',').map((o) => o.trim()).filter(Boolean)
+  : ['http://localhost:3001', 'http://localhost:8081'];
+
 const app = express();
 const httpServer = createServer(app);
 
+// Socket.IO: keep permissive for mobile (React Native WebSocket doesn't send
+// browser-style Origin headers; restricting here risks blocking the app itself).
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   cors: { origin: '*' },
-  pingTimeout: 60000,   // wait 60 s for pong before disconnecting (generous for mobile)
-  pingInterval: 25000,  // ping every 25 s
+  pingTimeout: 60000,
+  pingInterval: 25000,
+});
+
+// REST CORS: block untrusted web origins from calling the API.
+// Mobile clients aren't affected — they don't enforce CORS.
+app.use(cors({
+  origin: IS_PROD ? allowedOrigins : true,
+  methods: ['GET', 'POST'],
+}));
+
+// General rate limit: 120 requests per 15 minutes per IP.
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' },
+});
+
+// Stricter limit for lobby creation to prevent room spam.
+const lobbyCreateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many rooms created, please try again later.' },
 });
 
 app.use(express.json());
+app.use(generalLimiter);
+app.use('/lobby/create', lobbyCreateLimiter);
 app.use('/lobby', lobbyRouter);
 app.use('/ratings', ratingsRouter);
 
