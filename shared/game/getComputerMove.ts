@@ -144,10 +144,12 @@ function easyMove(state: GameState): ComputerAction {
 
 // ─── Hard: minimax with alpha-beta pruning ───────────────────────────────────
 
-const SEARCH_DEPTH = 3;
-const MAX_WALL_CANDIDATES = 4;
+const SEARCH_DEPTH = 4;
+const MAX_WALL_CANDIDATES = 8;
 
 // Evaluation from `aiColor`'s perspective — higher is better.
+// Blocking the opponent (2×) is weighted more than advancing yourself (1×).
+// A small wall-count bonus discourages burning walls wastefully early.
 function evaluate(state: GameState, aiColor: PieceColor): number {
   const myPos  = aiColor === 'red' ? state.redPosition  : state.bluePosition;
   const oppPos = aiColor === 'red' ? state.bluePosition : state.redPosition;
@@ -155,7 +157,9 @@ function evaluate(state: GameState, aiColor: PieceColor): number {
   const oppGoalRow = aiColor === 'red' ? 0 : 8;
   const myDist  = bfsDistance(state.placedWalls, myPos,  myGoalRow);
   const oppDist = bfsDistance(state.placedWalls, oppPos, oppGoalRow);
-  return oppDist - myDist;
+  const myWalls  = aiColor === 'red' ? state.redWallsRemaining  : state.blueWallsRemaining;
+  const oppWalls = aiColor === 'red' ? state.blueWallsRemaining : state.redWallsRemaining;
+  return 2 * oppDist - myDist + 0.3 * (myWalls - oppWalls);
 }
 
 // Returns up to MAX_WALL_CANDIDATES walls for the current player.
