@@ -114,16 +114,42 @@ function randomValidWall(state: GameState): Edge | null {
   return null;
 }
 
-// ─── Easy: greedy BFS toward own goal; occasionally places a random wall ────
+// ─── Easy: greedy BFS toward own goal; places path-blocking walls ────────────
+
+// Returns the first valid wall that cuts the opponent's current shortest path.
+function blockingWall(state: GameState): Edge | null {
+  const current = state.currentTurn;
+  const oppPos = current === 'red' ? state.bluePosition : state.redPosition;
+  const oppGoalRow = current === 'red' ? 0 : 8;
+
+  const oppPath = bfsPath(state.placedWalls, oppPos, oppGoalRow);
+  if (!oppPath) return null;
+
+  for (const edge of allWallCandidates()) {
+    const companion = getCompanionEdge(edge);
+    if (!companion) continue;
+    if (!wallBlocksPath(edge, companion, oppPath)) continue;
+    if (isWallPlacementValid(state, edge)) return edge;
+  }
+  return null;
+}
 
 function easyMove(state: GameState): ComputerAction {
   const computer = state.currentTurn;
   const myGoalRow = computer === 'red' ? 8 : 0;
   const wallsRemaining = computer === 'red' ? state.redWallsRemaining : state.blueWallsRemaining;
+  const oppPos = computer === 'red' ? state.bluePosition : state.redPosition;
+  const oppGoalRow = computer === 'red' ? 0 : 8;
 
-  if (wallsRemaining > 0 && Math.random() < 0.15) {
-    const wall = randomValidWall(state);
-    if (wall) return { type: 'wall', edge: wall };
+  if (wallsRemaining > 0) {
+    const oppDist = bfsDistance(state.placedWalls, oppPos, oppGoalRow);
+    // Always try to block if opponent is about to win.
+    const mustBlock = oppDist <= 2;
+    // Otherwise 30% chance to place a blocking wall.
+    if (mustBlock || Math.random() < 0.30) {
+      const wall = blockingWall(state) ?? randomValidWall(state);
+      if (wall) return { type: 'wall', edge: wall };
+    }
   }
 
   const validDirs = getValidMoves(state);
