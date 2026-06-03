@@ -6,6 +6,7 @@ import {
   checkWinner,
   getAdjacentSquare,
   getValidMoves,
+  getDeflectedJumps,
   isWallPlacementValid,
   normalizeEdge,
 } from '@shared/game';
@@ -48,6 +49,7 @@ export function useGame({
     const myPos = activeColor === 'red' ? gameState.redPosition : gameState.bluePosition;
     const oppPos = activeColor === 'red' ? gameState.bluePosition : gameState.redPosition;
     const validDirs = getValidMoves(gameState);
+    const deflected = getDeflectedJumps(gameState);
 
     const destinations: Position[] = [];
     for (const dir of validDirs) {
@@ -60,15 +62,20 @@ export function useGame({
         destinations.push(adj);
       }
     }
+    for (const dj of deflected) {
+      if (!destinations.some((d) => d.row === dj.landPos.row && d.col === dj.landPos.col)) {
+        destinations.push(dj.landPos);
+      }
+    }
 
-    setHighlightedSquares(destinations);
+    setHighlightedSquares(destinations, deflected);
   }
 
-  function onConfirmMove(dir: Direction): void {
+  function onConfirmMove(dir: Direction, landingOverride?: Position): void {
     if (!online) {
       if (!gameState) return;
       try {
-        const next = applyMove(gameState, dir);
+        const next = applyMove(gameState, dir, landingOverride);
         const winner = checkWinner(next);
         setGameState(winner ? { ...next, winner, phase: 'game_over' } : next);
       } catch {
@@ -78,7 +85,7 @@ export function useGame({
       return;
     }
     if (!roomCode) return;
-    emit('move_piece', { roomCode, direction: dir });
+    emit('move_piece', { roomCode, direction: dir, landingOverride });
     clearSelection();
   }
 

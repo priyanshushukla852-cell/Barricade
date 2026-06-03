@@ -156,7 +156,7 @@ export default function GameScreen() {
       const action = getComputerMove(state, difficulty);
       if (action.type === 'move') {
         try {
-          const next = applyMove(state, action.direction);
+          const next = applyMove(state, action.direction, action.landingOverride);
           const winner = checkWinner(next);
           useGameStore.getState().setGameState(winner ? { ...next, winner, phase: 'game_over' } : next);
         } catch {}
@@ -219,9 +219,9 @@ export default function GameScreen() {
     emit('chat_message', { roomCode, text });
   }
 
-  function handleSquarePress(position: Position, dir?: Direction) {
+  function handleSquarePress(position: Position, dir?: Direction, landingOverride?: Position) {
     if (dir !== undefined) {
-      game.onConfirmMove(dir);
+      game.onConfirmMove(dir, landingOverride);
     } else {
       game.onSelectPiece();
     }

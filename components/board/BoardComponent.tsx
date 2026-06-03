@@ -8,7 +8,7 @@ import type { Direction, Position } from '@shared/types';
 const BOARD_PIXEL_SIZE = CELL_SIZE * 9;
 
 type Props = {
-  onSquarePress: (position: Position, dir?: Direction) => void;
+  onSquarePress: (position: Position, dir?: Direction, landingOverride?: Position) => void;
   flashError?: boolean;
 };
 
@@ -24,6 +24,7 @@ export function BoardComponent({ onSquarePress, flashError = false }: Props) {
   const gameState = useGameStore((s) => s.gameState);
   const playerColor = useGameStore((s) => s.playerColor);
   const highlightedSquares = useGameStore((s) => s.highlightedSquares);
+  const deflectedJumps = useGameStore((s) => s.deflectedJumps);
 
   // Online red player sees the board flipped: red's side at the bottom, moving upward.
   const flipped = playerColor === 'red';
@@ -40,7 +41,18 @@ export function BoardComponent({ onSquarePress, flashError = false }: Props) {
     const highlighted = highlightedSquares.some(
       (s) => s.row === position.row && s.col === position.col,
     );
-    onSquarePress(position, highlighted ? directionFrom(myPos, position) : undefined);
+    if (!highlighted) { onSquarePress(position); return; }
+
+    // Check if this tap is a deflected jump destination — if so, pass the correct
+    // jumpDir rather than the naive direction from current position to destination.
+    const deflected = deflectedJumps.find(
+      (dj) => dj.landPos.row === position.row && dj.landPos.col === position.col,
+    );
+    if (deflected) {
+      onSquarePress(position, deflected.jumpDir, position);
+    } else {
+      onSquarePress(position, directionFrom(myPos, position));
+    }
   }
 
   return (

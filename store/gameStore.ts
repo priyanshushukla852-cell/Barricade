@@ -1,5 +1,10 @@
 import { create } from 'zustand';
-import type { Edge, GameState, PieceColor, Position } from '@shared/types';
+import type { Direction, Edge, GameState, PieceColor, Position } from '@shared/types';
+
+export interface DeflectedJumpEntry {
+  jumpDir: Direction;
+  landPos: Position;
+}
 
 interface GameStoreState {
   gameState: GameState | null;
@@ -7,6 +12,7 @@ interface GameStoreState {
   roomCode: string | null;
   boardOrigin: { x: number; y: number } | null;
   highlightedSquares: Position[];
+  deflectedJumps: DeflectedJumpEntry[];
   draggingWall: boolean;
   wallPreview: Edge | null;
   wallPreviewValid: boolean;
@@ -18,7 +24,7 @@ interface GameStoreActions {
   setPlayerColor: (color: PieceColor | null) => void;
   setRoomCode: (code: string | null) => void;
   setBoardOrigin: (origin: { x: number; y: number } | null) => void;
-  setHighlightedSquares: (squares: Position[]) => void;
+  setHighlightedSquares: (squares: Position[], deflected?: DeflectedJumpEntry[]) => void;
   setDraggingWall: (val: boolean) => void;
   setWallPreview: (edge: Edge | null, valid: boolean) => void;
   setReconnecting: (val: boolean) => void;
@@ -31,6 +37,7 @@ export const useGameStore = create<GameStoreState & GameStoreActions>()((set) =>
   roomCode: null,
   boardOrigin: null,
   highlightedSquares: [],
+  deflectedJumps: [],
   draggingWall: false,
   wallPreview: null,
   wallPreviewValid: false,
@@ -40,10 +47,11 @@ export const useGameStore = create<GameStoreState & GameStoreActions>()((set) =>
   setPlayerColor: (color) => set({ playerColor: color }),
   setRoomCode: (code) => set({ roomCode: code }),
   setBoardOrigin: (origin) => set({ boardOrigin: origin }),
-  setHighlightedSquares: (squares) => set({ highlightedSquares: squares }),
+  setHighlightedSquares: (squares, deflected = []) =>
+    set({ highlightedSquares: squares, deflectedJumps: deflected }),
   setDraggingWall: (val) => set({ draggingWall: val }),
   setWallPreview: (edge, valid) => set({ wallPreview: edge, wallPreviewValid: valid }),
   setReconnecting: (val) => set({ reconnecting: val }),
   clearSelection: () =>
-    set({ highlightedSquares: [], draggingWall: false, wallPreview: null, wallPreviewValid: false }),
+    set({ highlightedSquares: [], deflectedJumps: [], draggingWall: false, wallPreview: null, wallPreviewValid: false }),
 }));

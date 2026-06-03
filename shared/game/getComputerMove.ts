@@ -1,5 +1,5 @@
 import type { Direction, Edge, GameState, PieceColor, Position } from '@shared/types';
-import { getValidMoves } from './getValidMoves';
+import { getValidMoves, getDeflectedJumps } from './getValidMoves';
 import { applyMove } from './applyMove';
 import { applyWall } from './applyWall';
 import { checkWinner } from './checkWinner';
@@ -10,7 +10,7 @@ import { getAdjacentSquare } from './getAdjacentSquare';
 import { isWallBlocking } from './isWallBlocking';
 
 export type ComputerAction =
-  | { type: 'move'; direction: Direction }
+  | { type: 'move'; direction: Direction; landingOverride?: Position }
   | { type: 'wall'; edge: Edge };
 
 export type AiDifficulty = 'easy' | 'hard';
@@ -178,16 +178,33 @@ function easyMove(state: GameState): ComputerAction {
         if (onPath) { bestDir = dir; foundDir = true; break; }
       } catch { /* skip */ }
     }
-    // Fallback: path step is blocked by opponent piece — pick lowest BFS distance.
+    // Fallback: path step is blocked by opponent piece.
+    // Try deflected jumps first, then fall back to lowest BFS distance.
     if (!foundDir) {
-      let bestDist = Infinity;
-      for (const dir of validDirs) {
-        try {
-          const next = applyMove(state, dir);
-          const newMyPos = computer === 'red' ? next.redPosition : next.bluePosition;
-          const dist = bfsDistance(state.placedWalls, newMyPos, myGoalRow);
-          if (dist < bestDist) { bestDist = dist; bestDir = dir; }
-        } catch { /* skip */ }
+      const deflected = getDeflectedJumps(state);
+      if (deflected.length > 0) {
+        let bestDist = Infinity;
+        for (const dj of deflected) {
+          const dist = bfsDistance(state.placedWalls, dj.landPos, myGoalRow);
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestDir = dj.jumpDir;
+            // Store landing override for return below.
+            foundDir = true;
+            return { type: 'move', direction: dj.jumpDir, landingOverride: dj.landPos };
+          }
+        }
+      }
+      if (!foundDir) {
+        let bestDist = Infinity;
+        for (const dir of validDirs) {
+          try {
+            const next = applyMove(state, dir);
+            const newMyPos = computer === 'red' ? next.redPosition : next.bluePosition;
+            const dist = bfsDistance(state.placedWalls, newMyPos, myGoalRow);
+            if (dist < bestDist) { bestDist = dist; bestDir = dir; }
+          } catch { /* skip */ }
+        }
       }
     }
   }
@@ -271,10 +288,23 @@ function minimax(
   const isMax = state.currentTurn === aiColor;
   let best = isMax ? -Infinity : Infinity;
 
-  // ── Evaluate move actions ────────────────────────────────────────────────
+  // ── Evaluate move actions (including deflected jumps) ───────────────────
   for (const dir of getValidMoves(state)) {
     let next: GameState;
     try { next = applyMove(state, dir); } catch { continue; }
+    const score = minimax(next, depth - 1, alpha, beta, aiColor);
+    if (isMax) {
+      if (score > best) best = score;
+      if (best > alpha) alpha = best;
+    } else {
+      if (score < best) best = score;
+      if (best < beta) beta = best;
+    }
+    if (beta <= alpha) break;
+  }
+  for (const dj of getDeflectedJumps(state)) {
+    let next: GameState;
+    try { next = applyMove(state, dj.jumpDir, dj.landPos); } catch { continue; }
     const score = minimax(next, depth - 1, alpha, beta, aiColor);
     if (isMax) {
       if (score > best) best = score;
@@ -331,6 +361,15 @@ function hardMove(state: GameState): ComputerAction {
     if (score > bestScore) {
       bestScore = score;
       bestAction = { type: 'move', direction: dir };
+    }
+  }
+  for (const dj of getDeflectedJumps(state)) {
+    let next: GameState;
+    try { next = applyMove(state, dj.jumpDir, dj.landPos); } catch { continue; }
+    const score = minimax(next, SEARCH_DEPTH - 1, -Infinity, Infinity, computer);
+    if (score > bestScore) {
+      bestScore = score;
+      bestAction = { type: 'move', direction: dj.jumpDir, landingOverride: dj.landPos };
     }
   }
 

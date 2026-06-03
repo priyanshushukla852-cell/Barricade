@@ -32,6 +32,7 @@ const StartSchema = z.object({
 const MoveSchema = z.object({
   roomCode: z.string(),
   direction: z.enum(['up', 'down', 'left', 'right']),
+  landingOverride: z.object({ row: z.number().int().min(0).max(8), col: z.number().int().min(0).max(8) }).optional(),
 });
 const WallSchema = z.object({ roomCode: z.string(), wall: EdgeSchema });
 const LeaveSchema = z.object({ roomCode: z.string() });
@@ -246,7 +247,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
       socket.emit('error', { message: 'Invalid move_piece payload' });
       return;
     }
-    const { roomCode, direction } = result.data;
+    const { roomCode, direction, landingOverride } = result.data;
     const room = getRoom(roomCode);
     if (!room || !room.state) {
       socket.emit('error', { message: 'Room not found' });
@@ -264,7 +265,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
     }
     let newState;
     try {
-      newState = applyMove(room.state, direction);
+      newState = applyMove(room.state, direction, landingOverride);
     } catch (err) {
       socket.emit('error', { message: err instanceof Error ? err.message : 'Move failed' });
       return;

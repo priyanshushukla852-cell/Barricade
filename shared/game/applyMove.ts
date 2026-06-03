@@ -1,19 +1,30 @@
-import type { Direction, GameState } from '@shared/types';
+import type { Direction, GameState, Position } from '@shared/types';
 import { getAdjacentSquare } from './getAdjacentSquare';
-import { getValidMoves } from './getValidMoves';
+import { getValidMoves, getDeflectedJumps } from './getValidMoves';
 
-export function applyMove(state: GameState, dir: Direction): GameState {
-  if (!getValidMoves(state).includes(dir)) {
-    throw new Error('Invalid move direction');
-  }
-
+export function applyMove(state: GameState, dir: Direction, landingOverride?: Position): GameState {
   const isRed = state.currentTurn === 'red';
   const myPos = isRed ? state.redPosition : state.bluePosition;
   const oppPos = isRed ? state.bluePosition : state.redPosition;
 
-  const adj = getAdjacentSquare(myPos, dir)!;
-  const isJump = adj.row === oppPos.row && adj.col === oppPos.col;
-  const newPos = isJump ? getAdjacentSquare(oppPos, dir)! : adj;
+  let newPos: Position;
+
+  if (landingOverride) {
+    const deflected = getDeflectedJumps(state);
+    const valid = deflected.some(
+      (dj) =>
+        dj.jumpDir === dir &&
+        dj.landPos.row === landingOverride.row &&
+        dj.landPos.col === landingOverride.col,
+    );
+    if (!valid) throw new Error('Invalid deflected jump');
+    newPos = landingOverride;
+  } else {
+    if (!getValidMoves(state).includes(dir)) throw new Error('Invalid move direction');
+    const adj = getAdjacentSquare(myPos, dir)!;
+    const isJump = adj.row === oppPos.row && adj.col === oppPos.col;
+    newPos = isJump ? getAdjacentSquare(oppPos, dir)! : adj;
+  }
 
   return {
     ...state,

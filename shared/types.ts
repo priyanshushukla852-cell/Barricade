@@ -25,7 +25,7 @@ export interface GameState {
 
 // ── Socket payload types ─────────────────────────────────────────────────────
 
-export type MovePayload = { roomCode: string; direction: Direction };
+export type MovePayload = { roomCode: string; direction: Direction; landingOverride?: Position };
 export type WallPayload = { roomCode: string; wall: Edge };
 export type JoinPayload = { roomCode: string; userId: string; nickname: string };
 export type StartPayload = { roomCode: string; timerConfig: TimerOption };
