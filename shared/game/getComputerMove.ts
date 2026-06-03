@@ -143,10 +143,12 @@ function easyMove(state: GameState): ComputerAction {
 
   if (wallsRemaining > 0) {
     const oppDist = bfsDistance(state.placedWalls, oppPos, oppGoalRow);
-    // Always try to block if opponent is about to win.
-    const mustBlock = oppDist <= 2;
-    // Otherwise 30% chance to place a blocking wall.
-    if (mustBlock || Math.random() < 0.30) {
+    // Always try to block if opponent is about to win (and save at least 1 wall).
+    const mustBlock = oppDist <= 2 && wallsRemaining > 1;
+    // Only spend walls opportunistically when we still have plenty left (>3),
+    // and only 20% of the time so walls last through the game.
+    const spendOpportunistically = wallsRemaining > 3 && Math.random() < 0.20;
+    if (mustBlock || spendOpportunistically) {
       const wall = blockingWall(state) ?? randomValidWall(state);
       if (wall) return { type: 'wall', edge: wall };
     }
