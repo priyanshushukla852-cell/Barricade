@@ -154,17 +154,42 @@ function easyMove(state: GameState): ComputerAction {
     }
   }
 
+  const myPos = computer === 'red' ? state.redPosition : state.bluePosition;
   const validDirs = getValidMoves(state);
   let bestDir = validDirs[0];
-  let bestDist = Infinity;
 
-  for (const dir of validDirs) {
-    try {
-      const next = applyMove(state, dir);
-      const newMyPos = computer === 'red' ? next.redPosition : next.bluePosition;
-      const dist = bfsDistance(state.placedWalls, newMyPos, myGoalRow);
-      if (dist < bestDist) { bestDist = dist; bestDir = dir; }
-    } catch { /* invalid move */ }
+  // Follow the actual BFS shortest path step-by-step to prevent oscillation.
+  // Greedy distance-minimisation can bounce between two squares when walls
+  // create a dead-end entrance; path-following never revisits a position.
+  const path = bfsPath(state.placedWalls, myPos, myGoalRow);
+  if (path && path.length > 1) {
+    const nextPos = path[1];
+    let foundDir = false;
+    for (const dir of validDirs) {
+      try {
+        const next = applyMove(state, dir);
+        const newMyPos = computer === 'red' ? next.redPosition : next.bluePosition;
+        // Accept path[1] (normal move) or path[2] (jump clears an extra square).
+        const onPath =
+          (newMyPos.row === nextPos.row && newMyPos.col === nextPos.col) ||
+          (path.length > 2 &&
+            newMyPos.row === path[2].row &&
+            newMyPos.col === path[2].col);
+        if (onPath) { bestDir = dir; foundDir = true; break; }
+      } catch { /* skip */ }
+    }
+    // Fallback: path step is blocked by opponent piece — pick lowest BFS distance.
+    if (!foundDir) {
+      let bestDist = Infinity;
+      for (const dir of validDirs) {
+        try {
+          const next = applyMove(state, dir);
+          const newMyPos = computer === 'red' ? next.redPosition : next.bluePosition;
+          const dist = bfsDistance(state.placedWalls, newMyPos, myGoalRow);
+          if (dist < bestDist) { bestDist = dist; bestDir = dir; }
+        } catch { /* skip */ }
+      }
+    }
   }
 
   return { type: 'move', direction: bestDir };
