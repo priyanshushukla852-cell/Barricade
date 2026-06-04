@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { useSocket, emit } from './useSocket';
 import {
@@ -28,6 +29,7 @@ export function useGame({
   const roomCode = useGameStore((s) => s.roomCode);
   const setGameState = useGameStore((s) => s.setGameState);
   const setHighlightedSquares = useGameStore((s) => s.setHighlightedSquares);
+  const draggingWall = useGameStore((s) => s.draggingWall);
   const setDraggingWall = useGameStore((s) => s.setDraggingWall);
   const setWallPreview = useGameStore((s) => s.setWallPreview);
   const clearSelection = useGameStore((s) => s.clearSelection);
@@ -119,6 +121,16 @@ export function useGame({
     emit('place_wall', { roomCode, wall: normalizeEdge(edge) });
     clearSelection();
   }
+
+  // Auto-highlight valid moves at the start of the player's turn so they never
+  // need to tap their piece first. Runs whenever the turn changes, the phase
+  // changes, or a wall drag ends.
+  useEffect(() => {
+    if (draggingWall) return;
+    onSelectPiece();
+    // onSelectPiece reads current store state and guards isMyTurn() internally.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState?.currentTurn, gameState?.phase, draggingWall]);
 
   return {
     isMyTurn,
