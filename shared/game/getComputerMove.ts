@@ -241,11 +241,11 @@ function evaluate(state: GameState, aiColor: PieceColor): number {
   const oppDist = bfsDistance(state.placedWalls, oppPos, oppGoalRow);
   const myWalls  = aiColor === 'red' ? state.redWallsRemaining  : state.blueWallsRemaining;
   const oppWalls = aiColor === 'red' ? state.blueWallsRemaining : state.redWallsRemaining;
-  // Raw row-progress bonus (0.05 per row toward goal) breaks ties when BFS distances
-  // are equal from adjacent squares — prevents the AI from oscillating in wall mazes.
-  // Scale is tiny vs strategic terms (2.0+) so it never overrides real decisions.
+  // Both terms now weighted at 2×: advancing self is as valuable as blocking opponent.
+  // Higher myDist weight creates a strong gradient toward the goal, preventing the AI
+  // from treating backward moves as strategically neutral (was 1× before, causing oscillation).
   const rowProgress = aiColor === 'red' ? myPos.row / 8 : (8 - myPos.row) / 8;
-  return 2 * oppDist - myDist + 0.3 * (myWalls - oppWalls) + 0.05 * rowProgress;
+  return 2 * oppDist - 2 * myDist + 0.3 * (myWalls - oppWalls) + 0.1 * rowProgress;
 }
 
 // Returns up to MAX_WALL_CANDIDATES walls for the current player.
@@ -449,8 +449,11 @@ function hardMove(state: GameState): ComputerAction {
     const score = minimax(next, SEARCH_DEPTH - 1, -Infinity, Infinity, computer, deadline);
     const newPos = computer === 'red' ? next.redPosition : next.bluePosition;
     const distAfter = bfsDistance(next.placedWalls, newPos, myGoalRow);
-    // Accept if strictly better score, OR same score but move is more forward-progressing.
-    if (score > bestScore || (score === bestScore && distAfter < bestDistAfter)) {
+    // A move beats the current best when: strictly higher score, OR tied score AND
+    // current best is also a move AND this move is more forward-progressing.
+    // A wall chosen first is NOT displaced by a tied move — walls are defensive and
+    // should only lose to a strictly better move.
+    if (score > bestScore || (score === bestScore && bestAction.type === 'move' && distAfter < bestDistAfter)) {
       bestScore = score;
       bestAction = { type: 'move', direction: dir };
       bestDistAfter = distAfter;
@@ -463,7 +466,7 @@ function hardMove(state: GameState): ComputerAction {
     try { next = applyMove(state, dj.jumpDir, dj.landPos); } catch { continue; }
     const score = minimax(next, SEARCH_DEPTH - 1, -Infinity, Infinity, computer, deadline);
     const distAfter = bfsDistance(next.placedWalls, dj.landPos, myGoalRow);
-    if (score > bestScore || (score === bestScore && distAfter < bestDistAfter)) {
+    if (score > bestScore || (score === bestScore && bestAction.type === 'move' && distAfter < bestDistAfter)) {
       bestScore = score;
       bestAction = { type: 'move', direction: dj.jumpDir, landingOverride: dj.landPos };
       bestDistAfter = distAfter;
