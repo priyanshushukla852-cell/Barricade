@@ -307,7 +307,7 @@ export default function GameScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#FAF7F2' },
+  screen: { flex: 1, backgroundColor: '#FAF7F2', paddingTop: 20, paddingBottom: 20 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',

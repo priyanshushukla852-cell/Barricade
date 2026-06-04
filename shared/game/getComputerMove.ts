@@ -396,11 +396,71 @@ function hardWallCandidates(state: GameState, computer: PieceColor): Edge[] {
   return searchWallCandidates(state).slice(0, 3);
 }
 
+// Resolves the BFS committed path into a concrete move action.
+// BFS is deterministic for a given board state, so when multiple equal-length
+// paths exist it always picks the same first step — eliminating oscillation.
+// Falls back to best greedy distance if the path step is blocked by the opponent.
+function resolvePathMove(
+  state: GameState,
+  computer: PieceColor,
+  myPath: Position[] | null,
+  myGoalRow: number,
+): ComputerAction | null {
+  const validDirs = getValidMoves(state);
+
+  if (myPath && myPath.length > 1) {
+    const nextPos = myPath[1];
+
+    // Regular move or straight jump that lands on path[1] or path[2] (jump skips a square).
+    for (const dir of validDirs) {
+      try {
+        const next = applyMove(state, dir);
+        const newPos = computer === 'red' ? next.redPosition : next.bluePosition;
+        const onPath =
+          (newPos.row === nextPos.row && newPos.col === nextPos.col) ||
+          (myPath.length > 2 && newPos.row === myPath[2].row && newPos.col === myPath[2].col);
+        if (onPath) return { type: 'move', direction: dir };
+      } catch { /* skip */ }
+    }
+
+    // Deflected jump that reaches path[1].
+    for (const dj of getDeflectedJumps(state)) {
+      if (dj.landPos.row === nextPos.row && dj.landPos.col === nextPos.col) {
+        return { type: 'move', direction: dj.jumpDir, landingOverride: dj.landPos };
+      }
+    }
+
+    // Path step is blocked (opponent piece in the way, no clear jump).
+    // Fall back: pick the valid move / deflected jump that minimises BFS distance.
+    let bestDist = Infinity;
+    let bestFallback: ComputerAction | null = null;
+    for (const dir of validDirs) {
+      try {
+        const next = applyMove(state, dir);
+        const newPos = computer === 'red' ? next.redPosition : next.bluePosition;
+        const dist = bfsDistance(state.placedWalls, newPos, myGoalRow);
+        if (dist < bestDist) { bestDist = dist; bestFallback = { type: 'move', direction: dir }; }
+      } catch { /* skip */ }
+    }
+    for (const dj of getDeflectedJumps(state)) {
+      const dist = bfsDistance(state.placedWalls, dj.landPos, myGoalRow);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestFallback = { type: 'move', direction: dj.jumpDir, landingOverride: dj.landPos };
+      }
+    }
+    if (bestFallback) return bestFallback;
+  }
+
+  // No path computed (shouldn't happen in a valid non-terminal state).
+  return validDirs.length > 0 ? { type: 'move', direction: validDirs[0] } : null;
+}
+
 function hardMove(state: GameState): ComputerAction {
   const computer = state.currentTurn;
   const deadline = Date.now() + 700; // 700ms compute budget; UI adds ~300ms delay = ~1s total
 
-  // Fix #2: take an immediate win — check both regular moves AND deflected jumps.
+  // Seize any immediate win first — both regular and deflected jumps.
   for (const dir of getValidMoves(state)) {
     try {
       const next = applyMove(state, dir);
@@ -414,66 +474,48 @@ function hardMove(state: GameState): ComputerAction {
     } catch { /* skip */ }
   }
 
-  const myPos      = computer === 'red' ? state.redPosition  : state.bluePosition;
-  const myGoalRow  = computer === 'red' ? 8 : 0;
-  const currentDist = bfsDistance(state.placedWalls, myPos, myGoalRow);
+  const myPos     = computer === 'red' ? state.redPosition : state.bluePosition;
+  const myGoalRow = computer === 'red' ? 8 : 0;
 
-  // Fix #4 / #5: evaluate walls FIRST so they always get budget before the move loop
-  // consumes it. A wall must only score strictly higher than the best move to win
-  // (moves can tie-break on forward progress; walls win any subsequent ties with moves).
+  // Commit to BFS shortest path. When multiple equal-length paths exist, BFS always
+  // returns the same one for the same board state — the AI never oscillates between them.
+  const myPath = bfsPath(state.placedWalls, myPos, myGoalRow);
+  const committedMove = resolvePathMove(state, computer, myPath, myGoalRow);
+
+  // Strategic wall decision: use minimax to compare the committed path move against
+  // each wall candidate. Place a wall only when it scores strictly better, meaning it
+  // either blocks the opponent more effectively or protects our path from being cut.
   const wallEdges = hardWallCandidates(state, computer);
-  const dirs = getValidMoves(state);
 
-  let bestAction: ComputerAction = { type: 'move', direction: dirs[0] ?? 'up' };
-  let bestScore = -Infinity;
-  // Track BFS distance after the chosen action so we can apply a forward tiebreaker.
-  let bestDistAfter = currentDist;
-
-  // Walls evaluated first — moves need strictly higher score to override a wall.
-  for (const edge of wallEdges) {
-    if (Date.now() >= deadline) break;
-    let next: GameState;
-    try { next = applyWall(state, edge); } catch { continue; }
-    const score = minimax(next, SEARCH_DEPTH - 1, -Infinity, Infinity, computer, deadline);
-    if (score > bestScore) {
-      bestScore = score;
-      bestAction = { type: 'wall', edge };
-      bestDistAfter = currentDist; // wall doesn't move the piece
+  if (wallEdges.length > 0) {
+    // Score the committed move once as the baseline.
+    let committedScore = -Infinity;
+    if (committedMove?.type === 'move') {
+      try {
+        const ns = applyMove(state, committedMove.direction, committedMove.landingOverride);
+        committedScore = minimax(ns, SEARCH_DEPTH - 1, -Infinity, Infinity, computer, deadline);
+      } catch { /* skip */ }
     }
+
+    // A wall wins only if it scores strictly higher than committing to the path.
+    let bestWall: Edge | null = null;
+    let bestWallScore = committedScore;
+
+    for (const edge of wallEdges) {
+      if (Date.now() >= deadline) break;
+      let next: GameState;
+      try { next = applyWall(state, edge); } catch { continue; }
+      const score = minimax(next, SEARCH_DEPTH - 1, -Infinity, Infinity, computer, deadline);
+      if (score > bestWallScore) {
+        bestWallScore = score;
+        bestWall = edge;
+      }
+    }
+
+    if (bestWall) return { type: 'wall', edge: bestWall };
   }
 
-  for (const dir of dirs) {
-    if (Date.now() >= deadline) break;
-    let next: GameState;
-    try { next = applyMove(state, dir); } catch { continue; }
-    const score = minimax(next, SEARCH_DEPTH - 1, -Infinity, Infinity, computer, deadline);
-    const newPos = computer === 'red' ? next.redPosition : next.bluePosition;
-    const distAfter = bfsDistance(next.placedWalls, newPos, myGoalRow);
-    // A move beats the current best when: strictly higher score, OR tied score AND
-    // current best is also a move AND this move is more forward-progressing.
-    // A wall chosen first is NOT displaced by a tied move — walls are defensive and
-    // should only lose to a strictly better move.
-    if (score > bestScore || (score === bestScore && bestAction.type === 'move' && distAfter < bestDistAfter)) {
-      bestScore = score;
-      bestAction = { type: 'move', direction: dir };
-      bestDistAfter = distAfter;
-    }
-  }
-
-  for (const dj of getDeflectedJumps(state)) {
-    if (Date.now() >= deadline) break;
-    let next: GameState;
-    try { next = applyMove(state, dj.jumpDir, dj.landPos); } catch { continue; }
-    const score = minimax(next, SEARCH_DEPTH - 1, -Infinity, Infinity, computer, deadline);
-    const distAfter = bfsDistance(next.placedWalls, dj.landPos, myGoalRow);
-    if (score > bestScore || (score === bestScore && bestAction.type === 'move' && distAfter < bestDistAfter)) {
-      bestScore = score;
-      bestAction = { type: 'move', direction: dj.jumpDir, landingOverride: dj.landPos };
-      bestDistAfter = distAfter;
-    }
-  }
-
-  return bestAction;
+  return committedMove ?? { type: 'move', direction: getValidMoves(state)[0] ?? 'up' };
 }
 
 export function getComputerMove(state: GameState, difficulty: AiDifficulty): ComputerAction {

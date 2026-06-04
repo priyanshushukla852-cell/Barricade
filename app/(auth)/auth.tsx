@@ -186,6 +186,8 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#FAF7F2',
+    paddingTop: 20,
+    paddingBottom: 20,
   },
   container: {
     flex: 1,

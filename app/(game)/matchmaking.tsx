@@ -115,7 +115,7 @@ export default function MatchmakingScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#FAF7F2' },
+  screen: { flex: 1, backgroundColor: '#FAF7F2', paddingTop: 20, paddingBottom: 20 },
   content: {
     flex: 1,
     alignItems: 'center',

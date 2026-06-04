@@ -111,7 +111,12 @@ function WallToken({
   return (
     <View
       {...panResponder.panHandlers}
-      style={[styles.token, disabled && styles.tokenDisabled, dragging && styles.tokenDragging]}
+      style={[
+        styles.token,
+        orientation === 'vertical' ? styles.tokenVertical : styles.tokenHorizontal,
+        disabled && styles.tokenDisabled,
+        dragging && styles.tokenDragging,
+      ]}
     >
       <Text style={styles.tokenIcon}>{orientation === 'vertical' ? '│' : '━'}</Text>
     </View>
@@ -172,14 +177,14 @@ export function WallHand({ onWallDragStart, onWallDrop, computer = false }: Prop
 const styles = StyleSheet.create({
   container: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   token: {
-    width: 48,
-    height: 48,
     borderRadius: 8,
     backgroundColor: '#4A3728',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  tokenVertical:   { width: 44, height: 72 },
+  tokenHorizontal: { width: 72, height: 44 },
   tokenDisabled: { backgroundColor: '#CCBBAA', opacity: 0.5 },
   tokenDragging: { opacity: 0.4 },
-  tokenIcon: { color: '#FFFFFF', fontSize: 22, fontWeight: '700' },
+  tokenIcon: { color: '#FFFFFF', fontSize: 24, fontWeight: '700' },
 });
