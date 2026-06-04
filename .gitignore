@@ -44,5 +44,6 @@ server/dist/
 /ios
 /android
 
-# Claude Code memory
+# Claude Code — ignore local settings/memory but track rule files
 .claude/
+!.claude/*.md
