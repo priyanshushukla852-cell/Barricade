@@ -28,6 +28,16 @@ CREATE TABLE IF NOT EXISTS game_results (
   winner_rating_after  INTEGER      NOT NULL,
   loser_rating_after   INTEGER      NOT NULL,
   reason               TEXT         NOT NULL,
-  played_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+  played_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_game_room_code UNIQUE (room_code)
 );
+
+-- Add the unique constraint idempotently if the table already existed without it.
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'uq_game_room_code'
+  ) THEN
+    ALTER TABLE game_results ADD CONSTRAINT uq_game_room_code UNIQUE (room_code);
+  END IF;
+END $$;
 `;

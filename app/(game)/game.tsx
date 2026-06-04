@@ -21,7 +21,7 @@ import { useGameStore } from '../../store/gameStore';
 import { useAuthStore } from '../../store/authStore';
 import { emit } from '../../hooks/useSocket';
 import { socket } from '../../lib/socketClient';
-import { applyMove, applyWall, checkWinner, getComputerMove } from '@shared/game';
+import { applyMove, applyWall, checkWinner, getComputerMove, getValidMoves } from '@shared/game';
 import type { AiDifficulty } from '@shared/game';
 import type { Direction, Edge, PieceColor, Position } from '@shared/types';
 
@@ -102,7 +102,8 @@ export default function GameScreen() {
     if (isOnline) return;
     const id = setInterval(() => {
       const state = useGameStore.getState().gameState;
-      if (!state || state.phase !== 'choosing' || state.timerConfig === 0) return;
+      if (!state || state.timerConfig === 0) return;
+      if (state.phase !== 'choosing') { clearInterval(id); return; }
       const active = state.currentTurn;
       const remaining = active === 'red' ? state.redTimeRemaining : state.blueTimeRemaining;
       const next = Math.max(0, remaining - 1);
@@ -146,25 +147,37 @@ export default function GameScreen() {
     if (!playerColor || gameState.currentTurn === playerColor) return;
 
     const delay = difficulty === 'hard'
-      ? 900 + Math.random() * 700   // 900–1600 ms: feels like it's thinking hard
-      : 400 + Math.random() * 400;  // 400–800 ms: quicker, casual feel
+      ? 250 + Math.random() * 100   // 250–350 ms: minimax uses remaining 700 ms budget
+      : 300 + Math.random() * 200;  // 300–500 ms: easy is fast, small pause feels natural
     const id = setTimeout(() => {
       const state = useGameStore.getState().gameState;
       if (!state || state.phase !== 'choosing') return;
       if (!playerColor || state.currentTurn === playerColor) return;
 
       const action = getComputerMove(state, difficulty);
+      // Fix: if the computed action throws (e.g. an invalid deflected-jump landing),
+      // fall back to the first legal move so the game never silently freezes.
+      const applyFallbackMove = () => {
+        for (const dir of getValidMoves(state)) {
+          try {
+            const next = applyMove(state, dir);
+            const winner = checkWinner(next);
+            useGameStore.getState().setGameState(winner ? { ...next, winner, phase: 'game_over' } : next);
+            return;
+          } catch { /* try next direction */ }
+        }
+      };
       if (action.type === 'move') {
         try {
           const next = applyMove(state, action.direction, action.landingOverride);
           const winner = checkWinner(next);
           useGameStore.getState().setGameState(winner ? { ...next, winner, phase: 'game_over' } : next);
-        } catch {}
+        } catch { applyFallbackMove(); }
       } else {
         try {
           const next = applyWall(state, action.edge);
           useGameStore.getState().setGameState(next);
-        } catch {}
+        } catch { applyFallbackMove(); }
       }
     }, delay);
 

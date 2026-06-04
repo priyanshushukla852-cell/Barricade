@@ -21,9 +21,9 @@ const PositionSchema = z.object({ row: z.number().int(), col: z.number().int() }
 const EdgeSchema = z.object({ from: PositionSchema, to: PositionSchema });
 
 const JoinSchema = z.object({
-  roomCode: z.string(),
-  userId: z.string(),
-  nickname: z.string(),
+  roomCode: z.string().min(1).max(8),
+  userId: z.string().min(1).max(128),
+  nickname: z.string().min(1).max(20),
 });
 const StartSchema = z.object({
   roomCode: z.string(),
@@ -36,7 +36,7 @@ const MoveSchema = z.object({
 });
 const WallSchema = z.object({ roomCode: z.string(), wall: EdgeSchema });
 const LeaveSchema = z.object({ roomCode: z.string() });
-const QueueSchema = z.object({ userId: z.string(), nickname: z.string() });
+const QueueSchema = z.object({ userId: z.string().min(1).max(128), nickname: z.string().min(1).max(20) });
 const LeaveQueueSchema = z.object({ userId: z.string() });
 const UpdateLobbySchema = z.object({ roomCode: z.string(), rated: z.boolean() });
 const RematchSchema = z.object({ roomCode: z.string() });
@@ -54,6 +54,9 @@ async function finalizeGame(
   winner: import('@shared/types').PieceColor,
   reason: 'reached_goal' | 'timeout' | 'opponent_left',
 ): Promise<void> {
+  // Guard: prevent double-finalize from concurrent leave_game + disconnect timer.
+  if (room.finalized) return;
+  room.finalized = true;
   const winnerPlayer = winner === 'red' ? room.red : room.blue;
   const loserPlayer = winner === 'red' ? room.blue : room.red;
 
@@ -109,14 +112,13 @@ export function startTurnTimer(io: AppServer, roomCode: string): void {
   room.tickInterval = setInterval(() => {
     const r = getRoom(roomCode);
     if (!r || !r.state) return;
-    if (r.state.currentTurn === 'red') {
-      r.state.redTimeRemaining = Math.max(0, r.state.redTimeRemaining - 1);
-    } else {
-      r.state.blueTimeRemaining = Math.max(0, r.state.blueTimeRemaining - 1);
-    }
+    const updated = r.state.currentTurn === 'red'
+      ? { ...r.state, redTimeRemaining: Math.max(0, r.state.redTimeRemaining - 1) }
+      : { ...r.state, blueTimeRemaining: Math.max(0, r.state.blueTimeRemaining - 1) };
+    updateState(roomCode, updated);
     io.to(roomCode).emit('timer_tick', {
-      redTimeRemaining: r.state.redTimeRemaining,
-      blueTimeRemaining: r.state.blueTimeRemaining,
+      redTimeRemaining: updated.redTimeRemaining,
+      blueTimeRemaining: updated.blueTimeRemaining,
     });
   }, 1000);
 
@@ -234,6 +236,11 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
       socket.emit('error', { message: 'Not enough players' });
       return;
     }
+    const hostPlayer = room.hostColor === 'red' ? room.red : room.blue;
+    if (!hostPlayer || hostPlayer.socketId !== socket.id) {
+      socket.emit('error', { message: 'Only the host can start the game' });
+      return;
+    }
     const state = createInitialState(timerConfig);
     updateState(roomCode, state);
     room.startedAt = new Date();
@@ -261,6 +268,10 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
           : null;
     if (!color || color !== room.state.currentTurn) {
       socket.emit('error', { message: 'Not your turn' });
+      return;
+    }
+    if (room.state.phase !== 'choosing') {
+      socket.emit('error', { message: 'Game is already over' });
       return;
     }
     let newState;
@@ -304,6 +315,10 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
           : null;
     if (!color || color !== room.state.currentTurn) {
       socket.emit('error', { message: 'Not your turn' });
+      return;
+    }
+    if (room.state.phase !== 'choosing') {
+      socket.emit('error', { message: 'Game is already over' });
       return;
     }
     let newState;
@@ -350,7 +365,8 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
     const leavingColor = room.red?.socketId === socket.id ? 'red'
       : room.blue?.socketId === socket.id ? 'blue'
       : null;
-    const winner = leavingColor === 'red' ? 'blue' : 'red';
+    if (!leavingColor) return; // stale / spoofed socket — not a player in this room
+    const winner: import('@shared/types').PieceColor = leavingColor === 'red' ? 'blue' : 'red';
 
     clearTurnTimer(room);
     finalizeGame(io, roomCode, room, winner, 'opponent_left').catch((err) => logger.error({ err }, 'finalizeGame error'));
@@ -429,6 +445,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
       room.red = { ...oldBlue, color: 'red' };
       room.blue = { ...oldRed, color: 'blue' };
       room.rematchRequests.clear();
+      room.finalized = false; // allow the new game to be finalized
 
       const timerConfig = (room.state?.timerConfig ?? 5) as import('@shared/types').TimerOption;
       const newState = createInitialState(timerConfig === 0 ? 5 : timerConfig);

@@ -1,14 +1,32 @@
 import type { Edge, GameState, Position } from '@shared/types';
 import { normalizeEdge } from './normalizeEdge';
 import { wallsIntersect } from './wallsIntersect';
-import { pathExists } from './pathExists';
 import { getCompanionEdge } from './getCompanionEdge';
-import { BOARD_SIZE } from './boardConfig';
+import { getAdjacentSquare } from './getAdjacentSquare';
+import { isWallBlocking } from './isWallBlocking';
 
+const DIRS = ['up', 'down', 'left', 'right'] as const;
+
+// Single BFS that terminates on any cell in targetRow — replaces the old 9-call loop
+// over pathExists() which ran one full BFS per column (18 BFS per wall validation).
 function hasPathToRow(walls: Edge[], from: Position, targetRow: number): boolean {
-  return Array.from({ length: BOARD_SIZE }, (_, col) => col).some((col) =>
-    pathExists(walls, from, { row: targetRow, col }),
-  );
+  if (from.row === targetRow) return true;
+  const visited = new Uint8Array(81);
+  visited[from.row * 9 + from.col] = 1;
+  const queue: Position[] = [from];
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    for (const dir of DIRS) {
+      const next = getAdjacentSquare(cur, dir);
+      if (!next || isWallBlocking(walls, cur, next)) continue;
+      if (next.row === targetRow) return true;
+      const key = next.row * 9 + next.col;
+      if (visited[key]) continue;
+      visited[key] = 1;
+      queue.push(next);
+    }
+  }
+  return false;
 }
 
 function isDuplicate(walls: Edge[], edge: Edge): boolean {

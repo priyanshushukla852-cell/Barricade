@@ -1,5 +1,5 @@
 import type { PieceColor } from '@shared/types';
-import { query } from './client';
+import { query, withTransaction } from './client';
 import { calculateElo } from '../game/elo';
 
 export interface PlayerRating {
@@ -100,6 +100,7 @@ export async function applyRatings(
   loserId: string,
   reason: string,
 ): Promise<RatingUpdate> {
+  // Read ratings outside the transaction (reads are safe without serialisation).
   const [winnerData, loserData] = await Promise.all([
     getRating(winnerId),
     getRating(loserId),
@@ -112,48 +113,50 @@ export async function applyRatings(
     loserData.gamesPlayed,
   );
 
-  // Upsert winner
-  await query(
-    `INSERT INTO player_ratings (user_id, rating, games_played, wins, losses, updated_at)
-     VALUES ($1, $2, 1, 1, 0, NOW())
-     ON CONFLICT (user_id) DO UPDATE SET
-       rating = $2,
-       games_played = player_ratings.games_played + 1,
-       wins = player_ratings.wins + 1,
-       updated_at = NOW()`,
-    [winnerId, elo.newWinnerRating],
-  );
+  // All three writes run in a single transaction: if any fails, none are committed.
+  // The UNIQUE constraint on room_code also prevents double-finalize from inserting
+  // a duplicate row at the DB level.
+  await withTransaction(async (client) => {
+    await client.query(
+      `INSERT INTO player_ratings (user_id, rating, games_played, wins, losses, updated_at)
+       VALUES ($1, $2, 1, 1, 0, NOW())
+       ON CONFLICT (user_id) DO UPDATE SET
+         rating = $2,
+         games_played = player_ratings.games_played + 1,
+         wins = player_ratings.wins + 1,
+         updated_at = NOW()`,
+      [winnerId, elo.newWinnerRating],
+    );
 
-  // Upsert loser
-  await query(
-    `INSERT INTO player_ratings (user_id, rating, games_played, wins, losses, updated_at)
-     VALUES ($1, $2, 1, 0, 1, NOW())
-     ON CONFLICT (user_id) DO UPDATE SET
-       rating = $2,
-       games_played = player_ratings.games_played + 1,
-       losses = player_ratings.losses + 1,
-       updated_at = NOW()`,
-    [loserId, elo.newLoserRating],
-  );
+    await client.query(
+      `INSERT INTO player_ratings (user_id, rating, games_played, wins, losses, updated_at)
+       VALUES ($1, $2, 1, 0, 1, NOW())
+       ON CONFLICT (user_id) DO UPDATE SET
+         rating = $2,
+         games_played = player_ratings.games_played + 1,
+         losses = player_ratings.losses + 1,
+         updated_at = NOW()`,
+      [loserId, elo.newLoserRating],
+    );
 
-  // Log game result
-  await query(
-    `INSERT INTO game_results
-       (room_code, winner_id, loser_id,
-        winner_rating_before, loser_rating_before,
-        winner_rating_after, loser_rating_after, reason)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-    [
-      roomCode,
-      winnerId,
-      loserId,
-      winnerData.rating,
-      loserData.rating,
-      elo.newWinnerRating,
-      elo.newLoserRating,
-      reason,
-    ],
-  );
+    await client.query(
+      `INSERT INTO game_results
+         (room_code, winner_id, loser_id,
+          winner_rating_before, loser_rating_before,
+          winner_rating_after, loser_rating_after, reason)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [
+        roomCode,
+        winnerId,
+        loserId,
+        winnerData.rating,
+        loserData.rating,
+        elo.newWinnerRating,
+        elo.newLoserRating,
+        reason,
+      ],
+    );
+  });
 
   return {
     winner: { before: winnerData.rating, after: elo.newWinnerRating, delta: elo.winnerDelta },

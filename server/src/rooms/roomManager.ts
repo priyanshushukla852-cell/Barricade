@@ -16,6 +16,7 @@ export type Room = {
   autoStart: boolean;
   rated: boolean;
   hostColor: PieceColor;
+  finalized: boolean;
   disconnectTimers: Map<string, NodeJS.Timeout>;
   tickInterval: NodeJS.Timeout | null;
   turnTimer: NodeJS.Timeout | null;
@@ -57,6 +58,7 @@ export function createRoom(
     autoStart: false,
     rated: true,
     hostColor,
+    finalized: false,
     disconnectTimers: new Map(),
     tickInterval: null,
     turnTimer: null,
@@ -81,6 +83,7 @@ export function createMatchedRoom(
     autoStart: true,
     rated: true,
     hostColor: 'red', // matchmaking has no concept of host — value unused
+    finalized: false,
     disconnectTimers: new Map(),
     tickInterval: null,
     turnTimer: null,
