@@ -25,6 +25,8 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.priyanshu.barricade",
+      "enableProguardInReleaseBuilds": true,
+      "enableShrinkResourcesInReleaseBuilds": true,
       "intentFilters": [
         {
           "action": "VIEW",
