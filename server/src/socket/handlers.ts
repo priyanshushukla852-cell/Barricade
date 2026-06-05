@@ -151,14 +151,11 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
     }
     const { roomCode, userId, nickname, buildVersion } = result.data;
 
-    if ((buildVersion ?? 0) < MIN_CLIENT_BUILD) {
-      socket.emit('error', { message: VERSION_OUTDATED });
-      return;
-    }
-
     const room = getRoom(roomCode);
 
     // Player already in the room (pre-registered via REST or reconnecting after disconnect).
+    // Reconnects bypass the version check — the game is already in progress and the
+    // server is authoritative, so an older client can still participate.
     if (room) {
       const existing = room.red?.userId === userId
         ? room.red
@@ -208,6 +205,12 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
     }
 
     // First-time join via socket only (no prior REST registration).
+    // Version check applies here — new participants must be on a compatible build.
+    if ((buildVersion ?? 0) < MIN_CLIENT_BUILD) {
+      socket.emit('error', { message: VERSION_OUTDATED });
+      return;
+    }
+
     socket.join(roomCode);
     try {
       joinRoom(roomCode, socket.id, userId, nickname);
