@@ -12,15 +12,30 @@ import {
 import { router } from 'expo-router';
 import { resetPassword, signInWithEmail, signInWithGoogle, signUpWithEmail } from '../../hooks/useAuth';
 
-function firebaseErrorMessage(err: unknown): string {
+function firebaseSignInError(err: unknown): string {
   if (err && typeof err === 'object' && 'code' in err) {
     switch ((err as { code: string }).code) {
       case 'auth/invalid-credential':
       case 'auth/wrong-password':
       case 'auth/user-not-found':
-        return 'Incorrect email or password.';
+        // Could be wrong password OR a Google-only account — tell the user both options.
+        return 'Wrong password, or this email is linked to Google — try "Continue with Google".';
+      case 'auth/invalid-email':
+        return 'Please enter a valid email address.';
+      case 'auth/network-request-failed':
+        return 'Network error. Check your connection and try again.';
+      case 'auth/too-many-requests':
+        return 'Too many attempts. Try again later or reset your password.';
+    }
+  }
+  return err instanceof Error ? err.message : 'Something went wrong.';
+}
+
+function firebaseSignUpError(err: unknown): string {
+  if (err && typeof err === 'object' && 'code' in err) {
+    switch ((err as { code: string }).code) {
       case 'auth/email-already-in-use':
-        return 'An account with this email already exists.';
+        return 'An account already exists. Sign in instead, or use "Continue with Google" if you registered with Google.';
       case 'auth/weak-password':
         return 'Password must be at least 6 characters.';
       case 'auth/invalid-email':
@@ -30,10 +45,27 @@ function firebaseErrorMessage(err: unknown): string {
       case 'auth/network-request-failed':
         return 'Network error. Check your connection and try again.';
       case 'auth/too-many-requests':
-        return 'Too many attempts. Try again later or reset your password.';
+        return 'Too many attempts. Try again later.';
     }
   }
   return err instanceof Error ? err.message : 'Something went wrong.';
+}
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function validateSignIn(email: string, password: string): string | null {
+  if (!email.trim()) return 'Please enter your email.';
+  if (!EMAIL_REGEX.test(email.trim())) return 'Please enter a valid email address.';
+  if (!password) return 'Please enter your password.';
+  return null;
+}
+
+function validateSignUp(email: string, password: string): string | null {
+  if (!email.trim()) return 'Please enter your email.';
+  if (!EMAIL_REGEX.test(email.trim())) return 'Please enter a valid email address.';
+  if (!password) return 'Please enter a password.';
+  if (password.length < 6) return 'Password must be at least 6 characters.';
+  return null;
 }
 
 export default function AuthScreen() {
@@ -45,26 +77,30 @@ export default function AuthScreen() {
   const [resetSent, setResetSent] = useState(false);
 
   async function handleSignIn() {
+    const validationError = validateSignIn(email, password);
+    if (validationError) { setError(validationError); return; }
     setError('');
     setLoading(true);
     try {
       await signInWithEmail(email.trim(), password);
       router.replace('/(game)/home');
     } catch (err) {
-      setError(firebaseErrorMessage(err));
+      setError(firebaseSignInError(err));
     } finally {
       setLoading(false);
     }
   }
 
   async function handleSignUp() {
+    const validationError = validateSignUp(email, password);
+    if (validationError) { setError(validationError); return; }
     setError('');
     setLoading(true);
     try {
       await signUpWithEmail(email.trim(), password);
       router.replace('/(game)/home');
     } catch (err) {
-      setError(firebaseErrorMessage(err));
+      setError(firebaseSignUpError(err));
     } finally {
       setLoading(false);
     }
@@ -81,7 +117,7 @@ export default function AuthScreen() {
       await resetPassword(email.trim());
       setResetSent(true);
     } catch (err) {
-      setError(firebaseErrorMessage(err));
+      setError(firebaseSignInError(err));
     } finally {
       setLoading(false);
     }
@@ -94,7 +130,7 @@ export default function AuthScreen() {
       await signInWithGoogle();
       router.replace('/(game)/home');
     } catch (err) {
-      setError(firebaseErrorMessage(err));
+      setError(firebaseSignInError(err));
     } finally {
       setLoading(false);
     }
