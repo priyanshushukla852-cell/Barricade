@@ -1,3 +1,8 @@
+// ── Client build version ─────────────────────────────────────────────────────
+// Bump this when a protocol-breaking change is made (new required payload fields,
+// renamed events, changed game rules). Also bump MIN_CLIENT_BUILD in handlers.ts.
+export const CLIENT_BUILD_VERSION = 1;
+
 // ── Core domain types (source of truth: CLAUDE.md) ──────────────────────────
 
 export type Position = { row: number; col: number };
@@ -27,10 +32,10 @@ export interface GameState {
 
 export type MovePayload = { roomCode: string; direction: Direction; landingOverride?: Position };
 export type WallPayload = { roomCode: string; wall: Edge };
-export type JoinPayload = { roomCode: string; userId: string; nickname: string };
+export type JoinPayload = { roomCode: string; userId: string; nickname: string; buildVersion?: number };
 export type StartPayload = { roomCode: string; timerConfig: TimerOption };
 export type UpdateLobbyPayload = { roomCode: string; rated: boolean };
-export type QueuePayload = { userId: string; nickname: string };
+export type QueuePayload = { userId: string; nickname: string; buildVersion?: number };
 export type LeaveQueuePayload = { userId: string };
 export type MatchedPayload = { roomCode: string; playerColor: PieceColor };
 

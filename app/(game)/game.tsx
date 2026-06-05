@@ -22,6 +22,7 @@ import { useAuthStore } from '../../store/authStore';
 import { emit } from '../../hooks/useSocket';
 import { socket } from '../../lib/socketClient';
 import { applyMove, applyWall, checkWinner, getComputerMove, getValidMoves } from '@shared/game';
+import { CLIENT_BUILD_VERSION } from '@shared/types';
 import type { AiDifficulty } from '@shared/game';
 import type { Direction, Edge, PieceColor, Position } from '@shared/types';
 
@@ -80,13 +81,13 @@ export default function GameScreen() {
     if (!isOnline || !roomCode || !userId || !nickname) return;
 
     function onConnect() {
-      emit('join_lobby', { roomCode: roomCode!, userId: userId!, nickname: nickname! });
+      emit('join_lobby', { roomCode: roomCode!, userId: userId!, nickname: nickname!, buildVersion: CLIENT_BUILD_VERSION });
     }
 
     socket.on('connect', onConnect);
 
     if (socket.connected) {
-      emit('join_lobby', { roomCode, userId, nickname });
+      emit('join_lobby', { roomCode, userId, nickname, buildVersion: CLIENT_BUILD_VERSION });
     } else {
       socket.connect();
       // join_lobby will fire via the connect event above

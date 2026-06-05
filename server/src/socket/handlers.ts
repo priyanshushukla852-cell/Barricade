@@ -17,6 +17,10 @@ import { createInitialState, applyMove, applyWall, checkWinner } from '../game';
 import { saveGame } from '../db/saveGame';
 import { applyRatings, getRating } from '../db/ratings';
 
+// Bump when a protocol-breaking change ships. Must match CLIENT_BUILD_VERSION in shared/types.ts.
+const MIN_CLIENT_BUILD = 1;
+const VERSION_OUTDATED = 'VERSION_OUTDATED';
+
 const PositionSchema = z.object({ row: z.number().int(), col: z.number().int() });
 const EdgeSchema = z.object({ from: PositionSchema, to: PositionSchema });
 
@@ -24,6 +28,7 @@ const JoinSchema = z.object({
   roomCode: z.string().min(1).max(8),
   userId: z.string().min(1).max(128),
   nickname: z.string().min(1).max(20),
+  buildVersion: z.number().int().optional(),
 });
 const StartSchema = z.object({
   roomCode: z.string(),
@@ -36,7 +41,11 @@ const MoveSchema = z.object({
 });
 const WallSchema = z.object({ roomCode: z.string(), wall: EdgeSchema });
 const LeaveSchema = z.object({ roomCode: z.string() });
-const QueueSchema = z.object({ userId: z.string().min(1).max(128), nickname: z.string().min(1).max(20) });
+const QueueSchema = z.object({
+  userId: z.string().min(1).max(128),
+  nickname: z.string().min(1).max(20),
+  buildVersion: z.number().int().optional(),
+});
 const LeaveQueueSchema = z.object({ userId: z.string() });
 const UpdateLobbySchema = z.object({ roomCode: z.string(), rated: z.boolean() });
 const RematchSchema = z.object({ roomCode: z.string() });
@@ -140,7 +149,12 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
       socket.emit('error', { message: 'Invalid join_lobby payload' });
       return;
     }
-    const { roomCode, userId, nickname } = result.data;
+    const { roomCode, userId, nickname, buildVersion } = result.data;
+
+    if ((buildVersion ?? 0) < MIN_CLIENT_BUILD) {
+      socket.emit('error', { message: VERSION_OUTDATED });
+      return;
+    }
 
     const room = getRoom(roomCode);
 
@@ -378,7 +392,13 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
       socket.emit('error', { message: 'Invalid join_queue payload' });
       return;
     }
-    const { userId, nickname } = result.data;
+    const { userId, nickname, buildVersion } = result.data;
+
+    if ((buildVersion ?? 0) < MIN_CLIENT_BUILD) {
+      socket.emit('error', { message: VERSION_OUTDATED });
+      return;
+    }
+
     const { rating } = await getRating(userId).catch(() => ({ rating: 1200, gamesPlayed: 0, wins: 0, losses: 0 }));
     enqueue({ userId, socketId: socket.id, nickname, joinedAt: Date.now(), rating });
 

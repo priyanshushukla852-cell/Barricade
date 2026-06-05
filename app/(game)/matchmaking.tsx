@@ -13,6 +13,7 @@ import { emit } from '../../hooks/useSocket';
 import { useAuthStore } from '../../store/authStore';
 import { useGameStore } from '../../store/gameStore';
 import type { MatchedPayload } from '@shared/types';
+import { CLIENT_BUILD_VERSION } from '@shared/types';
 
 const TIMEOUT_SECONDS = 30;
 
@@ -25,13 +26,14 @@ export default function MatchmakingScreen() {
 
   const [elapsed, setElapsed] = useState(0);
   const [timedOut, setTimedOut] = useState(false);
+  const [updateRequired, setUpdateRequired] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function startSearching() {
     setElapsed(0);
     setTimedOut(false);
     if (!socket.connected) socket.connect();
-    emit('join_queue', { userId, nickname });
+    emit('join_queue', { userId, nickname, buildVersion: CLIENT_BUILD_VERSION });
   }
 
   useEffect(() => {
@@ -47,9 +49,18 @@ export default function MatchmakingScreen() {
       });
     }
 
+    function onError({ message }: { message: string }) {
+      if (message === 'VERSION_OUTDATED') {
+        emit('leave_queue', { userId });
+        setUpdateRequired(true);
+      }
+    }
+
     socket.on('matched', onMatched);
+    socket.on('error', onError);
     return () => {
       socket.off('matched', onMatched);
+      socket.off('error', onError);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -80,6 +91,22 @@ export default function MatchmakingScreen() {
 
   function handleRetry() {
     startSearching();
+  }
+
+  if (updateRequired) {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <View style={styles.content}>
+          <Text style={styles.title}>Update Required</Text>
+          <Text style={styles.subtitle}>
+            Your app is outdated. Please update Barricade to play online.
+          </Text>
+          <Pressable style={[styles.btn, styles.btnCancel]} onPress={() => router.replace('/(game)/home')}>
+            <Text style={styles.btnCancelText}>Back to Home</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   if (timedOut) {
