@@ -83,11 +83,27 @@ function WallToken({
         const { boardOrigin, playerColor } = useGameStore.getState();
         if (!boardOrigin) return;
         const edge = snapToEdge(moveX, moveY, boardOrigin, orientation, playerColor === 'red');
-        if (edge) moveRef.current(edge);
+        if (edge) {
+          moveRef.current(edge);
+        } else {
+          // Outside the grid — clear the preview so the snapped highlight disappears.
+          useGameStore.getState().setWallPreview(null, false);
+        }
       },
       onPanResponderRelease: (_, { moveX, moveY }) => {
         const { boardOrigin, playerColor, wallPreview, wallPreviewValid } = useGameStore.getState();
         if (!boardOrigin) return;
+
+        // If the finger was released outside the board, cancel the drag entirely.
+        const relX = moveX - boardOrigin.x;
+        const relY = moveY - boardOrigin.y;
+        const boardPx = CELL_SIZE * 9;
+        const isOnBoard = relX >= 0 && relX <= boardPx && relY >= 0 && relY <= boardPx;
+        if (!isOnBoard) {
+          useGameStore.getState().clearSelection();
+          return;
+        }
+
         // Prefer the last valid preview edge — avoids snap drift between the last
         // move event and the release event causing the placement to land on a
         // different (invalid) edge from the one shown in green.
