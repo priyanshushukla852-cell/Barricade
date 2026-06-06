@@ -55,8 +55,7 @@
         "@sentry/react-native",
         {
           "organization": "smash-tr",
-          "project": "react-native",
-          "uploadSourceMaps": false
+          "project": "react-native"
         }
       ]
     ],
