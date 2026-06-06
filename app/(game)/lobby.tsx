@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -13,6 +13,7 @@ import { socket } from '../../lib/socketClient';
 import { emit } from '../../hooks/useSocket';
 import { useAuthStore } from '../../store/authStore';
 import type { GameState, TimerOption } from '@shared/types';
+import { CLIENT_BUILD_VERSION } from '@shared/types';
 
 const TIMER_OPTIONS: TimerOption[] = [1, 2, 3, 5];
 
@@ -34,9 +35,12 @@ export default function LobbyScreen() {
   const [opponentJoined, setOpponentJoined] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Tracks whether we navigated into the game so cleanup doesn't send leave_game.
+  const startedRef = useRef(false);
+
   useEffect(() => {
     if (!socket.connected) socket.connect();
-    emit('join_lobby', { roomCode: code, userId, nickname });
+    emit('join_lobby', { roomCode: code, userId, nickname, buildVersion: CLIENT_BUILD_VERSION });
 
     function onLobbyReady() {
       setOpponentJoined(true);
@@ -47,6 +51,7 @@ export default function LobbyScreen() {
     }
 
     function onGameState(_gs: GameState) {
+      startedRef.current = true;
       router.replace({ pathname: '/(game)/game', params: { mode: 'online', roomCode: code } });
     }
 
@@ -54,16 +59,31 @@ export default function LobbyScreen() {
       router.replace('/(game)/home');
     }
 
+    // Re-register with the server whenever the socket reconnects (new socket.id).
+    // Without this, the host's new socket is never added to the socket.io room and
+    // won't receive lobby_ready when the joiner connects.
+    function onReconnect() {
+      emit('join_lobby', { roomCode: code, userId, nickname, buildVersion: CLIENT_BUILD_VERSION });
+    }
+
     socket.on('lobby_ready', onLobbyReady);
     socket.on('lobby_info', onLobbyInfo);
     socket.on('game_state', onGameState);
     socket.on('opponent_left', onOpponentLeft);
+    socket.on('connect', onReconnect);
 
     return () => {
       socket.off('lobby_ready', onLobbyReady);
       socket.off('lobby_info', onLobbyInfo);
       socket.off('game_state', onGameState);
       socket.off('opponent_left', onOpponentLeft);
+      socket.off('connect', onReconnect);
+      // Clean up the server room when leaving the lobby without starting a game
+      // (back button, Cancel, opponent left). Prevents stale rooms from blocking
+      // a fresh join attempt with the same code.
+      if (!startedRef.current) {
+        emit('leave_game', { roomCode: code });
+      }
     };
   }, [code, userId, nickname]);
 

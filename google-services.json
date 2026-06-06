@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "587302474132",
+    "project_id": "barricade-8ae54",
+    "storage_bucket": "barricade-8ae54.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:587302474132:android:84b44fc462e4f257163f81",
+        "android_client_info": {
+          "package_name": "com.priyanshu.barricade"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "587302474132-4ouq4vit7b90bb3hji2sgumpo6eq6in9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.priyanshu.barricade",
+            "certificate_hash": "5a4c7ed39e1aed5bd34444a338537a35eb8a1d8e"
+          }
+        },
+        {
+          "client_id": "587302474132-egj8l2cigfgf7u6jgi51sfcma49d10r3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAJ3XTKIWMRk9u2sNVGdtZscTB85SWAx6o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "587302474132-egj8l2cigfgf7u6jgi51sfcma49d10r3.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
