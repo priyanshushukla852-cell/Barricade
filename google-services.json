@@ -14,11 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "587302474132-4ouq4vit7b90bb3hji2sgumpo6eq6in9.apps.googleusercontent.com",
+          "client_id": "587302474132-ktf865do17aco3hn2nblj20sik9q2skq.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.priyanshu.barricade",
-            "certificate_hash": "5a4c7ed39e1aed5bd34444a338537a35eb8a1d8e"
+            "certificate_hash": "86703d5a785dd957b2dd6d599e4a54c16b713944"
           }
         },
         {
