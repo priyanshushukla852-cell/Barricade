@@ -51,3 +51,15 @@ server/dist/
 .claude/
 !.claude/rules/
 !.claude/rules/*.md
+
+# PEPK / keystore tooling leftovers (do not commit)
+pepk.jar
+bcprov.jar
+bcprov-old.jar
+Launcher.class
+Launcher.java
+ListProviders.class
+ListProviders.java
+TestCipher.class
+TestCipher.java
+output.zip
