@@ -4,7 +4,7 @@ import {
   fetchSignInMethodsForEmail,
   getIdToken,
   GoogleAuthProvider,
-  onAuthStateChanged,
+  onIdTokenChanged,
   sendPasswordResetEmail,
   signInWithCredential,
   signInWithEmailAndPassword,
@@ -31,7 +31,9 @@ async function applyUser(user: User): Promise<void> {
   );
 }
 
-onAuthStateChanged(auth, async (user) => {
+// onIdTokenChanged fires on sign-in, sign-out AND whenever Firebase refreshes the
+// ID token (~hourly), keeping authStore.token current for socket/REST auth.
+onIdTokenChanged(auth, async (user) => {
   if (user) {
     try {
       await applyUser(user);

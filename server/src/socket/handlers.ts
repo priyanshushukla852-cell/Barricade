@@ -1,7 +1,8 @@
-import type { Server, Socket } from 'socket.io';
+import type { Server, Socket, DefaultEventsMap } from 'socket.io';
 import { z } from 'zod';
-import type { ServerToClientEvents, ClientToServerEvents } from '@shared/types';
+import type { ServerToClientEvents, ClientToServerEvents, SocketData } from '@shared/types';
 import logger from '../logger';
+import { isAuthEnforced } from '../auth/firebaseAdmin';
 import {
   getRoom,
   getRoomBySocketId,
@@ -51,8 +52,16 @@ const UpdateLobbySchema = z.object({ roomCode: z.string(), rated: z.boolean() })
 const RematchSchema = z.object({ roomCode: z.string() });
 const ChatSchema = z.object({ roomCode: z.string(), text: z.string().min(1).max(200) });
 
-type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
-type AppServer = Server<ClientToServerEvents, ServerToClientEvents>;
+type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
+type AppServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
+
+// Resolve the acting user's id: the verified token UID when auth is enforced,
+// otherwise the client-supplied value (legacy mode). Returns null if enforced
+// but unauthenticated (should not happen — the connection middleware rejects).
+function resolveUserId(socket: AppSocket, payloadUserId: string): string | null {
+  if (isAuthEnforced()) return socket.data.userId ?? null;
+  return payloadUserId;
+}
 
 const RECONNECT_SECONDS = 60;
 
@@ -149,7 +158,12 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
       socket.emit('error', { message: 'Invalid join_lobby payload' });
       return;
     }
-    const { roomCode, userId, nickname, buildVersion } = result.data;
+    const { roomCode, nickname, buildVersion } = result.data;
+    const userId = resolveUserId(socket, result.data.userId);
+    if (!userId) {
+      socket.emit('error', { message: 'Authentication required' });
+      return;
+    }
 
     const room = getRoom(roomCode);
 
@@ -395,7 +409,12 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
       socket.emit('error', { message: 'Invalid join_queue payload' });
       return;
     }
-    const { userId, nickname, buildVersion } = result.data;
+    const { nickname, buildVersion } = result.data;
+    const userId = resolveUserId(socket, result.data.userId);
+    if (!userId) {
+      socket.emit('error', { message: 'Authentication required' });
+      return;
+    }
 
     if ((buildVersion ?? 0) < MIN_CLIENT_BUILD) {
       socket.emit('error', { message: VERSION_OUTDATED });
@@ -432,7 +451,9 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
   socket.on('leave_queue', (payload) => {
     const result = LeaveQueueSchema.safeParse(payload);
     if (!result.success) return;
-    dequeue(result.data.userId);
+    const userId = resolveUserId(socket, result.data.userId);
+    if (!userId) return;
+    dequeue(userId);
   });
 
   socket.on('request_rematch', (payload) => {

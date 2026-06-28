@@ -5,8 +5,11 @@ import { rateLimit } from 'express-rate-limit';
 import * as Sentry from '@sentry/node';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import type { ServerToClientEvents, ClientToServerEvents } from '@shared/types';
+import type { DefaultEventsMap } from 'socket.io';
+import type { ServerToClientEvents, ClientToServerEvents, SocketData } from '@shared/types';
 import { registerSocketHandlers } from './socket/handlers';
+import { isAuthEnforced, verifyToken } from './auth/firebaseAdmin';
+import { requireAuth } from './auth/requireAuth';
 import { query } from './db/client';
 import { MIGRATION_SQL } from './db/migrations';
 import lobbyRouter from './routes/lobby';
@@ -34,10 +37,27 @@ const httpServer = createServer(app);
 
 // Socket.IO: keep permissive for mobile (React Native WebSocket doesn't send
 // browser-style Origin headers; restricting here risks blocking the app itself).
-const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
+const io = new Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>(httpServer, {
   cors: { origin: '*' },
   pingTimeout: 60000,
   pingInterval: 25000,
+});
+
+// Authenticate every socket connection. In legacy mode (no service account
+// configured) this is a no-op and handlers fall back to client-supplied userId.
+io.use(async (socket, next) => {
+  if (!isAuthEnforced()) {
+    next();
+    return;
+  }
+  const token = socket.handshake.auth?.token as string | undefined;
+  const uid = await verifyToken(token);
+  if (!uid) {
+    next(new Error('UNAUTHENTICATED'));
+    return;
+  }
+  socket.data.userId = uid;
+  next();
 });
 
 // REST CORS: block untrusted web origins from calling the API.
@@ -68,7 +88,7 @@ const lobbyCreateLimiter = rateLimit({
 app.use(express.json());
 app.use(generalLimiter);
 app.use('/lobby/create', lobbyCreateLimiter);
-app.use('/lobby', lobbyRouter);
+app.use('/lobby', requireAuth, lobbyRouter);
 app.use('/ratings', ratingsRouter);
 
 Sentry.setupExpressErrorHandler(app);

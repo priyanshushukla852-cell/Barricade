@@ -32,6 +32,7 @@ type Sheet = 'local' | 'computer' | null;
 export default function HomeScreen() {
   const userId = useAuthStore((s) => s.userId);
   const nickname = useAuthStore((s) => s.nickname);
+  const token = useAuthStore((s) => s.token);
   const rating = useAuthStore((s) => s.rating);
   const setRating = useAuthStore((s) => s.setRating);
   const setGameState = useGameStore((s) => s.setGameState);
@@ -84,7 +85,10 @@ export default function HomeScreen() {
     try {
       const res = await fetch(`${SERVER_URL}/lobby/create`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ userId, nickname }),
       });
       const data = (await res.json()) as { roomCode?: string; playerColor?: string; error?: string };
@@ -111,7 +115,10 @@ export default function HomeScreen() {
     try {
       const res = await fetch(`${SERVER_URL}/lobby/join`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ userId, nickname, roomCode: code }),
       });
       const data = (await res.json()) as { playerColor?: string; error?: string };

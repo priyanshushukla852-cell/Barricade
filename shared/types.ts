@@ -52,6 +52,12 @@ export interface ClientToServerEvents {
   chat_message: (payload: { roomCode: string; text: string }) => void;
 }
 
+// Per-connection server-side data. userId is set by the socket auth middleware
+// from the verified Firebase token (when auth enforcement is enabled).
+export interface SocketData {
+  userId?: string;
+}
+
 export interface ServerToClientEvents {
   lobby_ready: () => void;
   lobby_info: (payload: { rated: boolean }) => void;

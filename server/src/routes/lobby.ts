@@ -4,37 +4,37 @@ import { createRoom, joinRoom } from '../rooms/roomManager';
 
 const router = Router();
 
+// userId is taken from the authenticated request (req.userId), never the body —
+// the body's nickname is display-only.
 const CreateSchema = z.object({
-  userId: z.string(),
   nickname: z.string().min(1).max(20),
 });
 
 const JoinSchema = z.object({
   roomCode: z.string().length(6),
-  userId: z.string(),
   nickname: z.string().min(1).max(20),
 });
 
 router.post('/create', (req, res) => {
   const result = CreateSchema.safeParse(req.body);
-  if (!result.success) {
-    res.status(400).json({ error: result.error.format() });
+  if (!result.success || !req.userId) {
+    res.status(result.success ? 401 : 400).json({ error: result.success ? 'Authentication required' : result.error.format() });
     return;
   }
-  const { userId, nickname } = result.data;
-  const { roomCode, hostColor } = createRoom('pending', userId, nickname);
+  const { nickname } = result.data;
+  const { roomCode, hostColor } = createRoom('pending', req.userId, nickname);
   res.json({ roomCode, playerColor: hostColor });
 });
 
 router.post('/join', (req, res) => {
   const result = JoinSchema.safeParse(req.body);
-  if (!result.success) {
-    res.status(400).json({ error: result.error.format() });
+  if (!result.success || !req.userId) {
+    res.status(result.success ? 401 : 400).json({ error: result.success ? 'Authentication required' : result.error.format() });
     return;
   }
-  const { roomCode, userId, nickname } = result.data;
+  const { roomCode, nickname } = result.data;
   try {
-    const playerColor = joinRoom(roomCode, 'pending', userId, nickname);
+    const playerColor = joinRoom(roomCode, 'pending', req.userId, nickname);
     res.json({ ok: true, playerColor });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
