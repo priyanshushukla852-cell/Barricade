@@ -9,6 +9,7 @@ export type RoomPlayer = {
 
 export type Room = {
   roomCode: string;
+  gameId: string | null; // unique per game (regenerated on start/rematch); rating idempotency key
   state: GameState | null;
   red: RoomPlayer | null;
   blue: RoomPlayer | null;
@@ -29,6 +30,28 @@ const rooms = new Map<string, Room>();
 
 const CODE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 const CODE_LENGTH = 6;
+// Hard cap to bound memory against room-flood DoS.
+const MAX_ROOMS = 10_000;
+
+export class CapacityError extends Error {
+  constructor() {
+    super('Server is at capacity, please try again later');
+    this.name = 'CapacityError';
+  }
+}
+
+// Finds an existing un-started room this user already hosts. Makes createRoom
+// idempotent so a retried/duplicated POST /lobby/create (mobile networks drop
+// responses) returns the same room instead of leaking a second one.
+function findHostedUnstartedRoom(userId: string): { roomCode: string; hostColor: PieceColor } | null {
+  for (const [roomCode, room] of rooms) {
+    if (room.state === null && !room.autoStart) {
+      const host = room.hostColor === 'red' ? room.red : room.blue;
+      if (host?.userId === userId) return { roomCode, hostColor: room.hostColor };
+    }
+  }
+  return null;
+}
 
 export function generateRoomCode(): string {
   let code: string;
@@ -46,11 +69,16 @@ export function createRoom(
   userId: string,
   nickname: string,
 ): { roomCode: string; hostColor: PieceColor } {
+  // Idempotent: reuse an existing un-started room this user already hosts.
+  const existing = findHostedUnstartedRoom(userId);
+  if (existing) return existing;
+  if (rooms.size >= MAX_ROOMS) throw new CapacityError();
   const roomCode = generateRoomCode();
   const hostColor: PieceColor = Math.random() < 0.5 ? 'red' : 'blue';
   const player: RoomPlayer = { socketId, userId, nickname, color: hostColor };
   rooms.set(roomCode, {
     roomCode,
+    gameId: null,
     state: null,
     red: hostColor === 'red' ? player : null,
     blue: hostColor === 'blue' ? player : null,
@@ -73,9 +101,11 @@ export function createMatchedRoom(
   red: { userId: string; nickname: string },
   blue: { userId: string; nickname: string },
 ): string {
+  if (rooms.size >= MAX_ROOMS) throw new CapacityError();
   const roomCode = generateRoomCode();
   rooms.set(roomCode, {
     roomCode,
+    gameId: null,
     state: null,
     red: { socketId: 'pending', userId: red.userId, nickname: red.nickname, color: 'red' },
     blue: { socketId: 'pending', userId: blue.userId, nickname: blue.nickname, color: 'blue' },

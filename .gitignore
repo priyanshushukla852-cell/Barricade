@@ -37,6 +37,10 @@ yarn-error.*
 # EAS local credentials (contains keystore passwords — never commit)
 credentials.json
 
+# Firebase service-account private keys — SECRET, never commit (belongs in Railway env only)
+*-firebase-adminsdk-*.json
+*serviceAccount*.json
+
 # server build
 server/dist/
 

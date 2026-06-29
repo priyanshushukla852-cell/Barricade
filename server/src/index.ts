@@ -28,6 +28,13 @@ runMigrations();
 
 const IS_PROD = process.env.NODE_ENV === 'production';
 
+// Fail closed: never run in production without token verification. A missing or
+// malformed FIREBASE_SERVICE_ACCOUNT would otherwise silently disable all auth.
+if (IS_PROD && !isAuthEnforced()) {
+  logger.fatal('Auth not enforced in production (FIREBASE_SERVICE_ACCOUNT missing/invalid) — refusing to start.');
+  process.exit(1);
+}
+
 const allowedOrigins = IS_PROD
   ? (process.env.ALLOWED_ORIGINS ?? '').split(',').map((o) => o.trim()).filter(Boolean)
   : ['http://localhost:3001', 'http://localhost:8081'];
@@ -89,7 +96,7 @@ app.use(express.json());
 app.use(generalLimiter);
 app.use('/lobby/create', lobbyCreateLimiter);
 app.use('/lobby', requireAuth, lobbyRouter);
-app.use('/ratings', ratingsRouter);
+app.use('/ratings', requireAuth, ratingsRouter);
 
 Sentry.setupExpressErrorHandler(app);
 

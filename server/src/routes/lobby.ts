@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { createRoom, joinRoom } from '../rooms/roomManager';
+import { createRoom, joinRoom, CapacityError } from '../rooms/roomManager';
 
 const router = Router();
 
@@ -22,8 +22,16 @@ router.post('/create', (req, res) => {
     return;
   }
   const { nickname } = result.data;
-  const { roomCode, hostColor } = createRoom('pending', req.userId, nickname);
-  res.json({ roomCode, playerColor: hostColor });
+  try {
+    const { roomCode, hostColor } = createRoom('pending', req.userId, nickname);
+    res.json({ roomCode, playerColor: hostColor });
+  } catch (err) {
+    if (err instanceof CapacityError) {
+      res.status(503).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
 });
 
 router.post('/join', (req, res) => {

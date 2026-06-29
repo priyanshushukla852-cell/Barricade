@@ -94,6 +94,7 @@ export async function getProfile(userId: string, offset = 0): Promise<PlayerProf
 }
 
 export async function applyRatings(
+  gameId: string,
   roomCode: string,
   winner: PieceColor,
   winnerId: string,
@@ -141,11 +142,12 @@ export async function applyRatings(
 
     await client.query(
       `INSERT INTO game_results
-         (room_code, winner_id, loser_id,
+         (game_id, room_code, winner_id, loser_id,
           winner_rating_before, loser_rating_before,
           winner_rating_after, loser_rating_after, reason)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
       [
+        gameId,
         roomCode,
         winnerId,
         loserId,

@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS player_ratings (
 
 CREATE TABLE IF NOT EXISTS game_results (
   id                   SERIAL       PRIMARY KEY,
+  game_id              TEXT,
   room_code            VARCHAR(6)   NOT NULL,
   winner_id            TEXT         NOT NULL,
   loser_id             TEXT         NOT NULL,
@@ -28,16 +29,22 @@ CREATE TABLE IF NOT EXISTS game_results (
   winner_rating_after  INTEGER      NOT NULL,
   loser_rating_after   INTEGER      NOT NULL,
   reason               TEXT         NOT NULL,
-  played_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-  CONSTRAINT uq_game_room_code UNIQUE (room_code)
+  played_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
--- Add the unique constraint idempotently if the table already existed without it.
+-- Migrate idempotency from room_code to a per-game id. The old UNIQUE(room_code)
+-- wrongly blocked rematch games (they reuse the same room code), so their rating
+-- write silently failed. game_id is unique per game and still prevents a single
+-- game from being double-finalized.
+ALTER TABLE game_results ADD COLUMN IF NOT EXISTS game_id TEXT;
 DO $$ BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'uq_game_room_code'
-  ) THEN
-    ALTER TABLE game_results ADD CONSTRAINT uq_game_room_code UNIQUE (room_code);
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_game_room_code') THEN
+    ALTER TABLE game_results DROP CONSTRAINT uq_game_room_code;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_game_id') THEN
+    ALTER TABLE game_results ADD CONSTRAINT uq_game_id UNIQUE (game_id);
   END IF;
 END $$;
 `;

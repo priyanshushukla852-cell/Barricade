@@ -20,6 +20,7 @@ const TIMEOUT_SECONDS = 30;
 export default function MatchmakingScreen() {
   const userId = useAuthStore((s) => s.userId) ?? '';
   const nickname = useAuthStore((s) => s.nickname) ?? '';
+  const token = useAuthStore((s) => s.token);
   const setPlayerColor = useGameStore((s) => s.setPlayerColor);
   const setGameState = useGameStore((s) => s.setGameState);
   const clearSelection = useGameStore((s) => s.clearSelection);
@@ -27,11 +28,16 @@ export default function MatchmakingScreen() {
   const [elapsed, setElapsed] = useState(0);
   const [timedOut, setTimedOut] = useState(false);
   const [updateRequired, setUpdateRequired] = useState(false);
+  const [connectionError, setConnectionError] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function startSearching() {
     setElapsed(0);
     setTimedOut(false);
+    setConnectionError(false);
+    // Wait until the Firebase token is available — connecting/queueing without
+    // it is rejected by the server's auth check (connect_error), so don't try.
+    if (!useAuthStore.getState().token) return;
     if (!socket.connected) socket.connect();
     emit('join_queue', { userId, nickname, buildVersion: CLIENT_BUILD_VERSION });
   }
@@ -56,18 +62,25 @@ export default function MatchmakingScreen() {
       }
     }
 
+    // Auth failure / unreachable server surfaces as connect_error (not 'error').
+    function onConnectError() {
+      setConnectionError(true);
+    }
+
     socket.on('matched', onMatched);
     socket.on('error', onError);
+    socket.on('connect_error', onConnectError);
     return () => {
       socket.off('matched', onMatched);
       socket.off('error', onError);
+      socket.off('connect_error', onConnectError);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token]);
 
   // Elapsed-time ticker and 30s timeout.
   useEffect(() => {
-    if (timedOut) return;
+    if (timedOut || connectionError) return;
     intervalRef.current = setInterval(() => {
       setElapsed((prev) => {
         const next = prev + 1;
@@ -82,7 +95,7 @@ export default function MatchmakingScreen() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [timedOut, userId]);
+  }, [timedOut, connectionError, userId]);
 
   function handleCancel() {
     emit('leave_queue', { userId });
@@ -101,6 +114,25 @@ export default function MatchmakingScreen() {
           <Text style={styles.subtitle}>
             Your app is outdated. Please update Barricade to play online.
           </Text>
+          <Pressable style={[styles.btn, styles.btnCancel]} onPress={() => router.replace('/(game)/home')}>
+            <Text style={styles.btnCancelText}>Back to Home</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (connectionError) {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <View style={styles.content}>
+          <Text style={styles.title}>Connection problem</Text>
+          <Text style={styles.subtitle}>
+            Couldn&apos;t reach the game server. Check your connection and try again.
+          </Text>
+          <Pressable style={[styles.btn, styles.btnPrimary]} onPress={handleRetry}>
+            <Text style={styles.btnPrimaryText}>Try Again</Text>
+          </Pressable>
           <Pressable style={[styles.btn, styles.btnCancel]} onPress={() => router.replace('/(game)/home')}>
             <Text style={styles.btnCancelText}>Back to Home</Text>
           </Pressable>

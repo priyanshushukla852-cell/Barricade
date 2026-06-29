@@ -12,8 +12,7 @@ import {
 import { router } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { updateNickname } from '../../hooks/useAuth';
-
-const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL ?? 'http://localhost:3001';
+import { apiFetch } from '../../lib/api';
 
 interface HistoryEntry {
   outcome: 'win' | 'loss';
@@ -66,7 +65,7 @@ export default function ProfileScreen() {
       setLoading(false);
       return;
     }
-    fetch(`${SERVER_URL}/ratings/profile?userId=${encodeURIComponent(userId)}&offset=0`)
+    apiFetch(`/ratings/profile?userId=${encodeURIComponent(userId)}&offset=0`)
       .then((r) => {
         if (!r.ok) throw new Error('Server error');
         return r.json();
@@ -88,8 +87,8 @@ export default function ProfileScreen() {
     if (!userId || loadingMore) return;
     setLoadingMore(true);
     try {
-      const r = await fetch(
-        `${SERVER_URL}/ratings/profile?userId=${encodeURIComponent(userId)}&offset=${nextOffset}`,
+      const r = await apiFetch(
+        `/ratings/profile?userId=${encodeURIComponent(userId)}&offset=${nextOffset}`,
       );
       if (!r.ok) throw new Error('Server error');
       const data = (await r.json()) as ProfileData;

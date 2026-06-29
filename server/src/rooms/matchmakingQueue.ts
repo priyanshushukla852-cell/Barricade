@@ -7,11 +7,14 @@ export type QueueEntry = {
 };
 
 const RATING_WINDOW = 300;
+// Hard cap to bound memory against queue-flood DoS.
+const MAX_QUEUE = 5000;
 
 const queue: QueueEntry[] = [];
 
 export function enqueue(entry: QueueEntry): void {
   if (queue.some((e) => e.userId === entry.userId)) return;
+  if (queue.length >= MAX_QUEUE) return; // drop silently when saturated
   queue.push(entry);
 }
 

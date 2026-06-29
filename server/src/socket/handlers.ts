@@ -1,8 +1,10 @@
 import type { Server, Socket, DefaultEventsMap } from 'socket.io';
+import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import type { ServerToClientEvents, ClientToServerEvents, SocketData } from '@shared/types';
 import logger from '../logger';
 import { isAuthEnforced } from '../auth/firebaseAdmin';
+import { allowAction } from './rateLimiter';
 import {
   getRoom,
   getRoomBySocketId,
@@ -83,7 +85,7 @@ async function finalizeGame(
 
   if (winnerPlayer && loserPlayer && room.rated) {
     try {
-      const update = await applyRatings(roomCode, winner, winnerPlayer.userId, loserPlayer.userId, reason);
+      const update = await applyRatings(room.gameId ?? roomCode, roomCode, winner, winnerPlayer.userId, loserPlayer.userId, reason);
       winnerChange = update.winner;
       loserChange = update.loser;
     } catch (err) {
@@ -153,6 +155,7 @@ export function startTurnTimer(io: AppServer, roomCode: string): void {
 
 export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
   socket.on('join_lobby', (payload) => {
+    if (!allowAction(socket, 'join_lobby', 10, 10_000)) return;
     const result = JoinSchema.safeParse(payload);
     if (!result.success) {
       socket.emit('error', { message: 'Invalid join_lobby payload' });
@@ -208,6 +211,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
             if (room.autoStart) {
               const state = createInitialState(5);
               updateState(roomCode, state);
+              room.gameId = randomUUID();
               room.startedAt = new Date();
               startTurnTimer(io, roomCode);
               io.to(roomCode).emit('game_state', state);
@@ -274,12 +278,14 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
     }
     const state = createInitialState(timerConfig);
     updateState(roomCode, state);
+    room.gameId = randomUUID();
     room.startedAt = new Date();
     startTurnTimer(io, roomCode);
     io.to(roomCode).emit('game_state', state);
   });
 
   socket.on('move_piece', (payload) => {
+    if (!allowAction(socket, 'move', 10, 5_000)) return;
     const result = MoveSchema.safeParse(payload);
     if (!result.success) {
       socket.emit('error', { message: 'Invalid move_piece payload' });
@@ -327,6 +333,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
   });
 
   socket.on('place_wall', (payload) => {
+    if (!allowAction(socket, 'wall', 10, 5_000)) return;
     const result = WallSchema.safeParse(payload);
     if (!result.success) {
       socket.emit('error', { message: 'Invalid place_wall payload' });
@@ -404,6 +411,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
   });
 
   socket.on('join_queue', async (payload) => {
+    if (!allowAction(socket, 'join_queue', 5, 10_000)) return;
     const result = QueueSchema.safeParse(payload);
     if (!result.success) {
       socket.emit('error', { message: 'Invalid join_queue payload' });
@@ -428,10 +436,18 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
     if (!match) return;
 
     const [player1, player2] = match;
-    const roomCode = createMatchedRoom(
-      { userId: player1.userId, nickname: player1.nickname },
-      { userId: player2.userId, nickname: player2.nickname },
-    );
+    let roomCode: string;
+    try {
+      roomCode = createMatchedRoom(
+        { userId: player1.userId, nickname: player1.nickname },
+        { userId: player2.userId, nickname: player2.nickname },
+      );
+    } catch {
+      // Server at capacity — put both players back in the queue.
+      enqueue(player1);
+      enqueue(player2);
+      return;
+    }
 
     const sock1 = io.sockets.sockets.get(player1.socketId);
     const sock2 = io.sockets.sockets.get(player2.socketId);
@@ -457,6 +473,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
   });
 
   socket.on('request_rematch', (payload) => {
+    if (!allowAction(socket, 'rematch', 5, 10_000)) return;
     const result = RematchSchema.safeParse(payload);
     if (!result.success) return;
     const { roomCode } = result.data;
@@ -494,6 +511,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
       const timerConfig = (room.state?.timerConfig ?? 5) as import('@shared/types').TimerOption;
       const newState = createInitialState(timerConfig === 0 ? 5 : timerConfig);
       updateState(roomCode, newState);
+      room.gameId = randomUUID();
       room.startedAt = new Date();
 
       const redSock = io.sockets.sockets.get(room.red.socketId);
@@ -507,6 +525,7 @@ export function registerSocketHandlers(io: AppServer, socket: AppSocket) {
   });
 
   socket.on('chat_message', (payload) => {
+    if (!allowAction(socket, 'chat', 5, 5_000)) return;
     const result = ChatSchema.safeParse(payload);
     if (!result.success) return;
     const { roomCode, text } = result.data;

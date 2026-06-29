@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   SafeAreaView,
   StyleSheet,
@@ -56,7 +57,10 @@ export default function LobbyScreen() {
     }
 
     function onOpponentLeft() {
-      router.replace('/(game)/home');
+      startedRef.current = true; // we're leaving deliberately; don't emit leave_game in cleanup
+      Alert.alert('Opponent left', 'The other player left the lobby.', [
+        { text: 'OK', onPress: () => router.replace('/(game)/home') },
+      ]);
     }
 
     // Re-register with the server whenever the socket reconnects (new socket.id).
