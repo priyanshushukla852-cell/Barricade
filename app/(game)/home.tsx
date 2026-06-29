@@ -13,6 +13,7 @@ import { router } from 'expo-router';
 import { signOut } from '../../hooks/useAuth';
 import { useAuthStore } from '../../store/authStore';
 import { useGameStore } from '../../store/gameStore';
+import { apiFetch } from '../../lib/api';
 import { createInitialState } from '@shared/game';
 import type { AiDifficulty } from '@shared/game';
 import type { PieceColor, TimerOption } from '@shared/types';
@@ -25,14 +26,11 @@ const TIMER_OPTIONS: { value: TimerOption; label: string }[] = [
   { value: 5, label: '5 min' },
 ];
 
-const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL ?? 'http://localhost:3001';
-
 type Sheet = 'local' | 'computer' | null;
 
 export default function HomeScreen() {
   const userId = useAuthStore((s) => s.userId);
   const nickname = useAuthStore((s) => s.nickname);
-  const token = useAuthStore((s) => s.token);
   const rating = useAuthStore((s) => s.rating);
   const setRating = useAuthStore((s) => s.setRating);
   const setGameState = useGameStore((s) => s.setGameState);
@@ -41,7 +39,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (!userId) return;
-    fetch(`${SERVER_URL}/ratings/me?userId=${encodeURIComponent(userId)}`)
+    apiFetch(`/ratings/me?userId=${encodeURIComponent(userId)}`)
       .then((r) => r.json())
       .then((data: { rating?: number }) => { if (data.rating) setRating(data.rating); })
       .catch(() => {}); // silent — rating is just cosmetic
@@ -83,13 +81,9 @@ export default function HomeScreen() {
     setCreateError('');
     setCreateLoading(true);
     try {
-      const res = await fetch(`${SERVER_URL}/lobby/create`, {
+      const res = await apiFetch('/lobby/create', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ userId, nickname }),
+        body: { userId, nickname },
       });
       const data = (await res.json()) as { roomCode?: string; playerColor?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? 'Failed to create room');
@@ -113,13 +107,9 @@ export default function HomeScreen() {
     setJoinError('');
     setJoinLoading(true);
     try {
-      const res = await fetch(`${SERVER_URL}/lobby/join`, {
+      const res = await apiFetch('/lobby/join', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ userId, nickname, roomCode: code }),
+        body: { userId, nickname, roomCode: code },
       });
       const data = (await res.json()) as { playerColor?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? 'Failed to join room');
