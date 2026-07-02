@@ -13,7 +13,7 @@ export type ComputerAction =
   | { type: 'move'; direction: Direction; landingOverride?: Position }
   | { type: 'wall'; edge: Edge };
 
-export type AiDifficulty = 'easy' | 'hard';
+export type AiDifficulty = 'easy' | 'medium' | 'hard';
 
 // ─── Shared BFS helpers ──────────────────────────────────────────────────────
 
@@ -224,7 +224,7 @@ function easyMove(state: GameState): ComputerAction {
   return { type: 'move', direction: bestDir };
 }
 
-// ─── Hard: minimax with alpha-beta pruning ───────────────────────────────────
+// ─── Medium (formerly Hard): minimax with alpha-beta pruning ─────────────────
 
 const SEARCH_DEPTH = 4;
 const MAX_WALL_CANDIDATES = 8;
@@ -362,11 +362,11 @@ function minimax(
   return best === (isMax ? -Infinity : Infinity) ? evaluate(state, aiColor) : best;
 }
 
-// How many wall candidates the hard AI will consider, based on walls already spent.
+// How many wall candidates the medium AI will consider, based on walls already spent.
 // 0–4 used  → up to 3 candidates: walls are available, but moves still compete evenly.
 // 5–7 used  → up to 1 candidate, only when opponent is close or meaningfully ahead.
 // 8–9 used  → emergency only: 1 candidate when opponent is ≤3 squares from winning.
-function hardWallCandidates(state: GameState, computer: PieceColor): Edge[] {
+function mediumWallCandidates(state: GameState, computer: PieceColor): Edge[] {
   const wallsRemaining = computer === 'red' ? state.redWallsRemaining : state.blueWallsRemaining;
   const wallsUsed = 10 - wallsRemaining;
   if (wallsRemaining === 0) return [];
@@ -456,7 +456,7 @@ function resolvePathMove(
   return validDirs.length > 0 ? { type: 'move', direction: validDirs[0] } : null;
 }
 
-function hardMove(state: GameState): ComputerAction {
+function mediumMove(state: GameState): ComputerAction {
   const computer = state.currentTurn;
   const deadline = Date.now() + 700; // 700ms compute budget; UI adds ~300ms delay = ~1s total
 
@@ -485,7 +485,7 @@ function hardMove(state: GameState): ComputerAction {
   // Strategic wall decision: use minimax to compare the committed path move against
   // each wall candidate. Place a wall only when it scores strictly better, meaning it
   // either blocks the opponent more effectively or protects our path from being cut.
-  const wallEdges = hardWallCandidates(state, computer);
+  const wallEdges = mediumWallCandidates(state, computer);
 
   if (wallEdges.length > 0) {
     // Score the committed move once as the baseline.
@@ -518,6 +518,96 @@ function hardMove(state: GameState): ComputerAction {
   return committedMove ?? { type: 'move', direction: getValidMoves(state)[0] ?? 'up' };
 }
 
+// ─── Hard: deeper, full-root minimax ─────────────────────────────────────────
+//
+// Differences from medium that make it much stronger:
+// - Depth 5 search (vs 4) with a 1500ms compute budget (vs 700ms).
+// - EVERY root action — all moves, all deflected jumps, and the top wall
+//   candidates — is scored by minimax uniformly. Medium only compares walls
+//   against the single committed-path move, so it never notices when a
+//   non-path move (a sidestep, a defensive retreat) leads to a better line.
+// - No walls-used rationing: wall candidates are always on the table while
+//   walls remain. The search itself decides whether spending one is worth it
+//   (the evaluate() wall-count term is the brake against waste).
+// - Small tie-break bonus keeps the committed BFS path step preferred among
+//   equal scores, so the AI still never oscillates.
+
+const HARD_SEARCH_DEPTH = 5;
+const HARD_BUDGET_MS = 1500;
+const HARD_MAX_ROOT_WALLS = 6;
+const PATH_TIEBREAK_BONUS = 0.05;
+
+function hardMove(state: GameState): ComputerAction {
+  const computer = state.currentTurn;
+  const deadline = Date.now() + HARD_BUDGET_MS;
+
+  // Seize any immediate win first — both regular and deflected jumps.
+  for (const dir of getValidMoves(state)) {
+    try {
+      const next = applyMove(state, dir);
+      if (checkWinner(next) === computer) return { type: 'move', direction: dir };
+    } catch { /* skip */ }
+  }
+  for (const dj of getDeflectedJumps(state)) {
+    try {
+      const next = applyMove(state, dj.jumpDir, dj.landPos);
+      if (checkWinner(next) === computer) return { type: 'move', direction: dj.jumpDir, landingOverride: dj.landPos };
+    } catch { /* skip */ }
+  }
+
+  const myPos     = computer === 'red' ? state.redPosition : state.bluePosition;
+  const myGoalRow = computer === 'red' ? 8 : 0;
+  const myPath    = bfsPath(state.placedWalls, myPos, myGoalRow);
+  const committedMove = resolvePathMove(state, computer, myPath, myGoalRow);
+
+  type RootAction = { action: ComputerAction; next: GameState };
+  const rootActions: RootAction[] = [];
+
+  for (const dir of getValidMoves(state)) {
+    try { rootActions.push({ action: { type: 'move', direction: dir }, next: applyMove(state, dir) }); }
+    catch { /* skip */ }
+  }
+  for (const dj of getDeflectedJumps(state)) {
+    try {
+      rootActions.push({
+        action: { type: 'move', direction: dj.jumpDir, landingOverride: dj.landPos },
+        next: applyMove(state, dj.jumpDir, dj.landPos),
+      });
+    } catch { /* skip */ }
+  }
+  for (const edge of searchWallCandidates(state).slice(0, HARD_MAX_ROOT_WALLS)) {
+    try { rootActions.push({ action: { type: 'wall', edge }, next: applyWall(state, edge) }); }
+    catch { /* skip */ }
+  }
+
+  function isCommittedMove(a: ComputerAction): boolean {
+    return (
+      committedMove !== null &&
+      a.type === 'move' && committedMove.type === 'move' &&
+      a.direction === committedMove.direction &&
+      (a.landingOverride?.row ?? -1) === (committedMove.landingOverride?.row ?? -1) &&
+      (a.landingOverride?.col ?? -1) === (committedMove.landingOverride?.col ?? -1)
+    );
+  }
+
+  // Score the committed path move first so the best-known answer is always
+  // sensible if the deadline cuts the root loop short.
+  rootActions.sort((a, b) => Number(isCommittedMove(b.action)) - Number(isCommittedMove(a.action)));
+
+  let best: ComputerAction | null = null;
+  let bestScore = -Infinity;
+  for (const { action, next } of rootActions) {
+    if (best !== null && Date.now() >= deadline) break;
+    let score = minimax(next, HARD_SEARCH_DEPTH - 1, -Infinity, Infinity, computer, deadline);
+    if (isCommittedMove(action)) score += PATH_TIEBREAK_BONUS;
+    if (score > bestScore) { bestScore = score; best = action; }
+  }
+
+  return best ?? committedMove ?? { type: 'move', direction: getValidMoves(state)[0] ?? 'up' };
+}
+
 export function getComputerMove(state: GameState, difficulty: AiDifficulty): ComputerAction {
-  return difficulty === 'hard' ? hardMove(state) : easyMove(state);
+  if (difficulty === 'hard') return hardMove(state);
+  if (difficulty === 'medium') return mediumMove(state);
+  return easyMove(state);
 }

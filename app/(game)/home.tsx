@@ -9,14 +9,18 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { signOut } from '../../hooks/useAuth';
 import { useAuthStore } from '../../store/authStore';
 import { useGameStore } from '../../store/gameStore';
 import { apiFetch } from '../../lib/api';
+import { HowToPlayModal } from '../../components/ui/HowToPlayModal';
 import { createInitialState } from '@shared/game';
 import type { AiDifficulty } from '@shared/game';
 import type { PieceColor, TimerOption } from '@shared/types';
+
+const SEEN_RULES_KEY_PREFIX = 'hasSeenRules:';
 
 const TIMER_OPTIONS: { value: TimerOption; label: string }[] = [
   { value: 0, label: '∞' },
@@ -44,6 +48,25 @@ export default function HomeScreen() {
       .then((data: { rating?: number }) => { if (data.rating) setRating(data.rating); })
       .catch(() => {}); // silent — rating is just cosmetic
   }, [userId, setRating]);
+
+  // Show the How to Play card once, the first time this account logs in on
+  // this device. AsyncStorage flag is per-userId so a new account still sees
+  // it even if a previous account on the same device has already dismissed it.
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
+  useEffect(() => {
+    if (!userId) return;
+    const key = `${SEEN_RULES_KEY_PREFIX}${userId}`;
+    AsyncStorage.getItem(key)
+      .then((seen) => { if (!seen) setShowHowToPlay(true); })
+      .catch(() => {}); // silent — non-critical UX, don't block on storage errors
+  }, [userId]);
+
+  function dismissHowToPlay() {
+    setShowHowToPlay(false);
+    if (userId) {
+      AsyncStorage.setItem(`${SEEN_RULES_KEY_PREFIX}${userId}`, 'true').catch(() => {});
+    }
+  }
 
   // Sheet state
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -277,14 +300,14 @@ export default function HomeScreen() {
 
                 <Text style={styles.sheetLabel}>Difficulty</Text>
                 <View style={styles.optionRow}>
-                  {(['easy', 'hard'] as AiDifficulty[]).map((d) => (
+                  {(['easy', 'medium', 'hard'] as AiDifficulty[]).map((d) => (
                     <Pressable
                       key={d}
                       style={[styles.chip, computerDifficulty === d && styles.chipSelected]}
                       onPress={() => setComputerDifficulty(d)}
                     >
                       <Text style={[styles.chipText, computerDifficulty === d && styles.chipTextSelected]}>
-                        {d === 'easy' ? 'Easy' : 'Hard'}
+                        {d === 'easy' ? 'Easy' : d === 'medium' ? 'Medium' : 'Hard'}
                       </Text>
                     </Pressable>
                   ))}
@@ -298,6 +321,8 @@ export default function HomeScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <HowToPlayModal visible={showHowToPlay} onClose={dismissHowToPlay} />
     </SafeAreaView>
   );
 }

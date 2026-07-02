@@ -34,7 +34,8 @@ export default function GameScreen() {
   }>();
   const isOnline = mode === 'online';
   const isComputer = mode === 'computer';
-  const difficulty: AiDifficulty = rawDifficulty === 'hard' ? 'hard' : 'easy';
+  const difficulty: AiDifficulty =
+    rawDifficulty === 'hard' ? 'hard' : rawDifficulty === 'medium' ? 'medium' : 'easy';
 
   const gameState = useGameStore((s) => s.gameState);
   const playerColor = useGameStore((s) => s.playerColor);
@@ -148,8 +149,10 @@ export default function GameScreen() {
     if (!playerColor || gameState.currentTurn === playerColor) return;
 
     const delay = difficulty === 'hard'
-      ? 250 + Math.random() * 100   // 250–350 ms: minimax uses remaining 700 ms budget
-      : 300 + Math.random() * 200;  // 300–500 ms: easy is fast, small pause feels natural
+      ? 150 + Math.random() * 100   // 150–250 ms: hard's minimax has a 1500 ms budget of its own
+      : difficulty === 'medium'
+        ? 250 + Math.random() * 100 // 250–350 ms: minimax uses remaining 700 ms budget
+        : 300 + Math.random() * 200; // 300–500 ms: easy is fast, small pause feels natural
     const id = setTimeout(() => {
       const state = useGameStore.getState().gameState;
       if (!state || state.phase !== 'choosing') return;
